@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -110,6 +111,20 @@ class StoreTest(unittest.TestCase):
         self.assertIn("&lt;script&gt;", page)
         self.assertNotIn("<script>x", page)
         self.assertIn("2 candidates · 1 fetched · 1 flagged", page)
+
+
+class CoordsTest(unittest.TestCase):
+    def test_centroid_and_column_migration(self):
+        self.assertEqual(assessor._centroid({"centroid": {"x": -111.96698411, "y": 40.84456225}}), (40.844562, -111.966984))
+        self.assertEqual(assessor._centroid({}), (None, None))
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "old.db")
+            old = sqlite3.connect(path)
+            old.execute("CREATE TABLE candidates (parcel_id TEXT PRIMARY KEY, address TEXT)")
+            old.commit()
+            old.close()
+            cols = {r[1] for r in assessor.db(path).execute("PRAGMA table_info(candidates)")}
+        self.assertTrue({"lat", "lon"} <= cols)
 
 
 class WhereTest(unittest.TestCase):

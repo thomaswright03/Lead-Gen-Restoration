@@ -18,7 +18,7 @@ PARCEL_COLS = ["parcel_id", "address", "owner", "property_type", "year_built", "
                "market_value", "overall_condition", "interior_condition", "exterior_condition",
                "visual_appeal", "score", "flagged", "reasons", "cama_as_of", "scraped_at"]
 CANDIDATE_COLS = ["parcel_id", "address", "city", "built_yr", "eff_built_yr", "primary_res", "market_value",
-                  "lir_as_of", "added_at", "last_error"]
+                  "lir_as_of", "added_at", "last_error", "lat", "lon"]
 RECORDER_COLS = ["parcel_id", "last_transfer_date", "last_transfer_type", "owner_of_record", "owner_since",
                  "distress_filings", "checked_at"]
 LISTING_COLS = ["parcel_id", "status", "price", "listed_date", "removed_date", "days_on_market", "agent_name",
@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS candidates (
     parcel_id TEXT PRIMARY KEY, address TEXT, city TEXT, built_yr INTEGER,
     eff_built_yr INTEGER, primary_res TEXT, market_value BIGINT,
     lir_as_of TEXT, added_at TEXT, last_error TEXT);
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+ALTER TABLE candidates ADD COLUMN IF NOT EXISTS lon DOUBLE PRECISION;
 CREATE TABLE IF NOT EXISTS recorder (
     parcel_id TEXT PRIMARY KEY, last_transfer_date TEXT, last_transfer_type TEXT,
     owner_of_record TEXT, owner_since TEXT, distress_filings TEXT, checked_at TEXT);

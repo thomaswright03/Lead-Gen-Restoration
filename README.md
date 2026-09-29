@@ -19,6 +19,7 @@ python3 assessor.py candidates --max-eff-year 1995 --city "Salt Lake City" --own
 python3 assessor.py run [--limit 50]                 # fetch + score candidates not fetched yet; safe to stop and resume
 python3 assessor.py fetch 16-16-158-010-0000 ...     # specific parcels (or --file parcels.txt)
 python3 assessor.py rescore                          # after editing rules.json; no network
+python3 assessor.py coords                           # map coordinates for candidates pulled before they were stored
 python3 assessor.py export flagged.csv [--all] [--city Murray] [--min-score 9]
 python3 dashboard.py [--port 8000]                   # filterable table + CSV download at http://127.0.0.1:8000
 python3 snapshot.py results.html [--no-owner]        # one self-contained HTML page with filters, opens from disk
@@ -26,6 +27,7 @@ python3 -m unittest discover -s tests                # tests (synthetic pages, n
 ```
 
 - Data lives in `assessor.db` (SQLite: `candidates` from the state layer, `parcels` with scraped results and the full parsed record in `raw_json`) and `cache/`. Set `ASSESSOR_DB` / `ASSESSOR_CACHE` to keep them elsewhere, and `ASSESSOR_DELAY` to change the request spacing.
+- The results page has a map of the homes matching the current filters (Poor by default on a first visit). It asks for the viewer's location, sorts the table by distance, follows them as they walk, and links each home to directions. Location needs HTTPS, which the Vercel site has.
 - `cache/`, `assessor.db` and CSV exports are git-ignored because they contain owner names.
 - If the county returns 403 or 429, `run` stops instead of retrying. Run it again later and it picks up where it left off.
 
