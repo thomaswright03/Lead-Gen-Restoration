@@ -25,6 +25,7 @@ TEMPLATE = r"""<title>Poor Condition Parcels</title>
   --bg: #f6f7f9; --panel: #ffffff; --fg: #1b2230; --muted: #5d6778; --line: #dfe3ea;
   --accent: #2748a8; --accent-soft: #e6ebf8;
   --poor: #b42318; --poor-soft: #fde8e6; --fair: #a15c07; --fair-soft: #fdf0dc; --ok: #3b6e4f; --ok-soft: #e4f1e8;
+  --follow: #6d28d9; --nocontact: #0e7490; --dnc: #111827; --done: #8a94a6;
   --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -33,11 +34,13 @@ TEMPLATE = r"""<title>Poor Condition Parcels</title>
   --bg: #11151c; --panel: #181e27; --fg: #e6e9ef; --muted: #98a2b3; --line: #2a3240;
   --accent: #8ea8ff; --accent-soft: #1f2a47;
   --poor: #ff8a80; --poor-soft: #3a1a18; --fair: #f5b866; --fair-soft: #36280f; --ok: #8fd0a6; --ok-soft: #16301f;
+  --follow: #c4a5ff; --nocontact: #67d4e6; --dnc: #f3f4f6; --done: #6b7486;
   color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #11151c; --panel: #181e27; --fg: #e6e9ef; --muted: #98a2b3; --line: #2a3240;
   --accent: #8ea8ff; --accent-soft: #1f2a47;
   --poor: #ff8a80; --poor-soft: #3a1a18; --fair: #f5b866; --fair-soft: #36280f; --ok: #8fd0a6; --ok-soft: #16301f;
+  --follow: #c4a5ff; --nocontact: #67d4e6; --dnc: #f3f4f6; --done: #6b7486;
   color-scheme: dark; }
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); margin: 0; }
@@ -93,8 +96,9 @@ td.small { color: var(--muted); font-size: 12px; }
 td.small { white-space: normal; min-width: 9em; }
 .score { font: 600 13px var(--mono); }
 .empty { padding: 24px; text-align: center; color: var(--muted); }
-.howto { padding: 14px; font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
-.howto p { margin: 0; }
+.howto { padding: 12px 14px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; margin-top: 10px; max-width: 70ch; }
+.howto p, .howto ul { margin: 0; }
+.howto ul { padding-left: 18px; color: var(--fg); }
 @media (prefers-reduced-motion: no-preference) { .city .bar i { transition: width .3s ease; } }
 /* Map of the filtered homes, with the viewer's live location for door-knocking. */
 .mapbox { padding: 12px; display: grid; gap: 10px; }
@@ -116,6 +120,29 @@ td.dist a { font: 500 12px var(--body); color: var(--accent); margin-left: 6px; 
 td.addr button { all: unset; cursor: pointer; }
 td.addr button:hover { text-decoration: underline; }
 td.addr button:focus-visible { outline: 2px solid var(--accent); }
+.legend { flex-wrap: wrap; }
+.legend .ring { background: transparent !important; border: 2.5px solid; width: 10px; height: 10px; box-sizing: border-box; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+.knock { font-weight: 500; }
+.visits { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; display: grid; gap: 6px; max-height: 160px; overflow-y: auto; }
+.visit .small, .knockform .small { color: var(--muted); font-size: 12px; }
+.vnote { white-space: pre-wrap; overflow-wrap: anywhere; }
+button.btn.primary { background: var(--accent); color: var(--panel); }
+button.btn.primary:hover { background: var(--accent); opacity: .9; }
+button.btn:disabled { opacity: .6; cursor: default; }
+.stop { margin-top: 8px; width: 100%; }
+.knockform[hidden], .stop[hidden] { display: none; }
+.knockform { display: grid; gap: 8px; margin-top: 8px; }
+.knockform label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.knockform textarea { font: 13px/1.4 var(--body); color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; resize: vertical; }
+.knockform fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.knockform legend { font-size: 12px; color: var(--muted); padding: 0; margin-bottom: 4px; width: 100%; }
+.knockform .pill { display: inline-flex; position: relative; }
+.pill input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pill span { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; color: var(--fg); cursor: pointer; }
+.pill input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+.pill input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.formrow { display: flex; gap: 10px; align-items: center; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); } }
 :root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
 </style>
@@ -130,6 +157,19 @@ td.addr button:focus-visible { outline: 2px solid var(--accent); }
       <div class="total"><b id="t-checked">0</b><span>checked on county site</span></div>
       <div class="total"><b id="t-flag">0</b><span>flagged Fair or worse</span></div>
       <div class="total poor"><b id="t-poor">0</b><span>rated Poor overall</span></div>
+      <div class="total"><b id="t-knocked">0</b><span>doors knocked</span></div>
+    </div>
+    <div class="panel howto">
+      <h2>How the score works</h2>
+      <p>The score is out of 12 for a house. It adds up:</p>
+      <ul>
+        <li>Overall condition: Poor 4, Fair 2 (special obsolescence 3)</li>
+        <li>Interior: Poor 3, Fair 2</li>
+        <li>Exterior: Poor 3, Fair 2</li>
+        <li>Poor curb appeal: 1</li>
+        <li>Poor garage or shed: 1</li>
+      </ul>
+      <p>A home is flagged at 2 or more. Condos are only rated on the interior, so they max out at 3. An extra outbuilding in poor shape can add 1 more.</p>
     </div>
   </header>
 
@@ -148,6 +188,9 @@ td.addr button:focus-visible { outline: 2px solid var(--accent); }
           <option value="">Any</option><option value="sold">Sold in last 12 months</option><option value="listed">For sale now</option><option value="distress">Distress filing (3 yrs)</option>
         </select></label>
         <label for="minscore">Min score<select id="minscore"><option value="0">Any</option><option value="3">3+</option><option value="6">6+</option><option value="9">9+</option></select></label>
+        <label for="knock">Knocked<select id="knock"><option value="">Any</option><option value="no">Not knocked yet</option><option value="yes">Knocked</option></select></label>
+        <label for="within">Distance<select id="within"><option value="">Any distance</option><option value="0.25">Within ¼ mi</option><option value="0.5">Within ½ mi</option><option value="1">Within 1 mi</option><option value="2">Within 2 mi</option><option value="5">Within 5 mi</option></select></label>
+        <label for="built">Year built<select id="built"><option value="">Any year</option><option value="1920">Before 1920</option><option value="1950">Before 1950</option><option value="1970">Before 1970</option></select></label>
         <label class="check" for="all"><input id="all" type="checkbox"> Include not flagged</label>
         <div class="actions">
           <span class="status" id="status" role="status"></span>
@@ -159,7 +202,7 @@ td.addr button:focus-visible { outline: 2px solid var(--accent); }
         <div class="maphead">
           <h2>Map</h2>
           <span class="status" id="mapstatus" role="status"></span>
-          <div class="legend" aria-hidden="true"><span><i style="background:var(--poor)"></i>Poor</span><span><i style="background:var(--fair)"></i>Fair</span><span><i style="background:var(--accent)"></i>You</span></div>
+          <div class="legend" aria-hidden="true"><span><i style="background:var(--poor)"></i>Poor</span><span><i style="background:var(--fair)"></i>Fair</span><span><i style="background:var(--accent)"></i>You</span><span><i class="ring" style="border-color:var(--ok)"></i>Interested</span><span><i class="ring" style="border-color:var(--follow)"></i>Follow up</span><span><i class="ring" style="border-color:var(--nocontact)"></i>No contact</span><span title="Not interested, already handled or not qualified"><i class="ring" style="border-color:var(--done)"></i>Not a lead</span><span><i class="ring" style="border-color:var(--dnc)"></i>Do not contact</span></div>
           <button class="btn" type="button" id="locate">Find homes near me</button>
         </div>
         <div id="map" role="region" aria-label="Map of the homes in the table"></div>
@@ -170,10 +213,6 @@ td.addr button:focus-visible { outline: 2px solid var(--accent); }
           <tbody id="body"></tbody>
         </table>
       </div>
-      <div class="panel howto">
-        <h2>Reading the score</h2>
-        <p>Points add up to a maximum of 12 for a house: Overall Poor 4 (Special obsolescence 3, Fair 2) + Interior Poor 3 (Fair 2) + Exterior Poor 3 (Fair 2) + Poor curb appeal 1 + Poor garage or shed 1 (each extra outbuilding can add 1 more). Condos are rated on interior only, so they top out at 3. Flagged at 2 or more.</p>
-      </div>
     </section>
   </div>
 </div>
@@ -182,6 +221,13 @@ td.addr button:focus-visible { outline: 2px solid var(--accent); }
 <script>
 const DATA = __DATA__;
 const SHOW_OWNER = __SHOW_OWNER__;
+const CAN_SAVE = __CAN_SAVE__;
+const OUTCOMES = __OUTCOMES__;
+const VISITS = DATA.visits;  // parcel_id -> visits, oldest first
+const OUTCOME_COLOR = { "Interested": "--ok", "Follow Up": "--follow", "No Contact": "--nocontact", "Do Not Contact": "--dnc" };
+const lastVisit = r => { const v = VISITS[r.parcel_id]; return v && v[v.length - 1]; };
+const when = at => new Date(at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const knockChip = o => `<span class="knock"><i class="dot" style="background:var(${OUTCOME_COLOR[o] || "--done"})"></i>${esc(o)}</span>`;
 const DETAIL = "https://apps.saltlakecounty.gov/assessor/new/valuationInfoExpanded.cfm?parcel_id=";
 const COLS = [
   ["parcel_id", "Parcel", "pid"], ["address", "Address", "addr"], ["city", "City", ""],
@@ -189,7 +235,7 @@ const COLS = [
   ["property_type", "Type", "small"], ["year_built", "Built", "num"], ["effective_year_built", "Eff. built", "num"],
   ["market_value", "Market value", "num"], ["overall_condition", "Overall", "cond"],
   ["interior_condition", "Interior", "cond"], ["exterior_condition", "Exterior", "cond"], ["score", "Score /12", "num score"],
-  ["last_transfer_date", "Last transfer", "transfer"], ["listing_status", "Listing", "listing"],
+  ["knocked", "Knocked", "knocked"], ["last_transfer_date", "Last transfer", "transfer"], ["listing_status", "Listing", "listing"],
 ];
 const state = { city: "", sort: "score", dir: -1 };
 const $ = id => document.getElementById(id);
@@ -198,18 +244,23 @@ const money = v => Number(String(v || "").replace(/[^0-9.]/g, "")) || 0;
 const condKey = v => (v || "").split(" ")[0];
 const YEAR_AGO = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
 
+$("knock").insertAdjacentHTML("beforeend", `<optgroup label="Last outcome">${OUTCOMES.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join("")}</optgroup>`);
+const FILTER_IDS = ["q", "cond", "minscore", "activity", "knock", "within", "built"];
 // First visit: start on the Poor homes, the door-knocking list. Saved filters win after that.
 $("cond").value = "POOR";
 try { const saved = JSON.parse(localStorage.getItem("pcp-filters") || "{}"); Object.assign(state, saved.state || {});
-  for (const id of ["q", "cond", "minscore", "activity"]) if (saved[id] != null) $(id).value = saved[id];
+  for (const id of FILTER_IDS) if (saved[id] != null) $(id).value = saved[id];
   $("all").checked = !!saved.all; } catch (e) {}
 
-function save() { try { localStorage.setItem("pcp-filters", JSON.stringify({ state, q: $("q").value, cond: $("cond").value, minscore: $("minscore").value, activity: $("activity").value, all: $("all").checked })); } catch (e) {} }
+function save() { try { localStorage.setItem("pcp-filters", JSON.stringify({ state, all: $("all").checked, ...Object.fromEntries(FILTER_IDS.map(id => [id, $(id).value])) })); } catch (e) {} }
 
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), cond = $("cond").value, min = +$("minscore").value, all = $("all").checked;
-  const act = $("activity").value;
+  const act = $("activity").value, knock = $("knock").value, within = +$("within").value, built = +$("built").value;
   return DATA.rows.filter(r => (all || r.flagged)
+    && (!knock || (knock === "no" ? !lastVisit(r) : knock === "yes" ? !!lastVisit(r) : lastVisit(r)?.outcome === knock))
+    && (!within || (r._dist != null && r._dist <= within))
+    && (!built || (Number(r.year_built) > 0 && Number(r.year_built) < built))
     && (!state.city || r.city === state.city)
     && r.score >= min
     && (!act || (act === "sold" ? (r.last_transfer_date || "") >= YEAR_AGO : act === "listed" ? r.listing_status === "Active" : !!r.distress_filings))
@@ -219,7 +270,7 @@ function filtered() {
 
 function sorted(rows) {
   const k = state.sort, d = state.dir;
-  const val = r => k === "distance" ? (r._dist ?? Infinity) : k === "market_value" ? money(r[k]) : k === "listing_status" ? (r[k] === "Active" ? 2 : r[k] ? 1 : 0) : (["score", "year_built", "effective_year_built"].includes(k) ? Number(r[k]) || 0 : String(r[k] || "").toLowerCase());
+  const val = r => k === "distance" ? (r._dist ?? Infinity) : k === "knocked" ? (lastVisit(r)?.visited_at || "") : k === "market_value" ? money(r[k]) : k === "listing_status" ? (r[k] === "Active" ? 2 : r[k] ? 1 : 0) : (["score", "year_built", "effective_year_built"].includes(k) ? Number(r[k]) || 0 : String(r[k] || "").toLowerCase());
   return rows.slice().sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * d || a.parcel_id.localeCompare(b.parcel_id));
 }
 
@@ -245,6 +296,7 @@ function cell(r, [key, , cls]) {
     const price = r.listing_price ? " $" + Number(r.listing_price).toLocaleString() : "";
     return `<td class="small"><span class="chip ${v === "Active" ? "listed" : "none"}">${esc(v)}</span>${price}${contact ? `<br>${contact}` : ""}${office ? `<br>${office}` : ""}</td>`;
   }
+  if (cls === "knocked") { const v = lastVisit(r); return `<td class="small">${v ? `${knockChip(v.outcome)}<br>${esc(when(v.visited_at))}${v.visitor ? ` · ${esc(v.visitor)}` : ""}` : ""}</td>`; }
   if (cls === "num dist") return `<td class="dist">${r._dist == null ? "" : miles(r._dist)}${r.lat ? `<a href="${directions(r)}" target="_blank" rel="noopener">Directions</a>` : ""}</td>`;
   if (cls === "addr") return `<td class="addr">${r.lat ? `<button type="button" data-pid="${esc(r.parcel_id)}" title="Show on map">${esc(v)}</button>` : esc(v)}</td>`;
   if (key === "market_value") return `<td class="num">${esc(String(v || "").replace(/\s+/g, ""))}</td>`;
@@ -259,6 +311,7 @@ function render() {
   $("body").innerHTML = rows.length ? rows.map(r => `<tr title="${esc(r.reasons)}">${cols.map(c => cell(r, c)).join("")}</tr>`).join("")
     : `<tr><td class="empty" colspan="${cols.length}">No parcels match these filters.</td></tr>`;
   $("status").textContent = `${rows.length} shown`;
+  $("t-knocked").textContent = Object.keys(VISITS).length.toLocaleString();
   renderCities();
   drawMap(rows);
   save();
@@ -285,6 +338,51 @@ function popup(r) {
     + (r._dist != null ? `<br>${miles(r._dist)} away` : "")
     + `<div class="pop-links"><a href="${directions(r)}" target="_blank" rel="noopener">Directions</a><a href="${DETAIL}${esc(r.parcel_id)}" target="_blank" rel="noopener">County record</a></div>`;
 }
+let formFor = null;  // parcel whose popup shows the Stopped By form
+function popupEl(r) {
+  const el = document.createElement("div");
+  const visits = (VISITS[r.parcel_id] || []).slice().reverse();
+  el.innerHTML = popup(r)
+    + (visits.length ? `<div class="visits">${visits.map(v => `<div class="visit">${knockChip(v.outcome)} <span class="small">${esc(when(v.visited_at))}${v.visitor ? ` · ${esc(v.visitor)}` : ""}</span>${v.notes ? `<div class="vnote">${esc(v.notes)}</div>` : ""}</div>`).join("")}</div>` : "")
+    + (CAN_SAVE ? `<button type="button" class="btn stop"${formFor === r.parcel_id ? " hidden" : ""}>Stopped By</button>
+      <form class="knockform"${formFor === r.parcel_id ? "" : " hidden"}>
+        <label>Notes<textarea name="notes" rows="3" maxlength="5000" placeholder="What happened?"></textarea></label>
+        <fieldset><legend>Outcome</legend>${OUTCOMES.map(o => `<label class="pill"><input type="radio" name="outcome" value="${esc(o)}"><span>${esc(o)}</span></label>`).join("")}</fieldset>
+        <div class="formrow"><button type="submit" class="btn primary">Save</button><span class="small" role="status"></span></div>
+      </form>` : "");
+  // Keep taps, scrolling and typing inside the popup from moving the map.
+  L.DomEvent.disableClickPropagation(el);
+  L.DomEvent.disableScrollPropagation(el);
+  for (const t of ["keydown", "keyup", "keypress"]) el.addEventListener(t, e => e.stopPropagation());
+  const form = el.querySelector("form");
+  if (!form) return el;
+  // Reopen the popup with the form showing, so Leaflet pans the taller popup into view.
+  el.querySelector(".stop").addEventListener("click", () => {
+    const m = markers[r.parcel_id]; formFor = r.parcel_id;
+    if (m) { m.closePopup(); m.openPopup(); setTimeout(() => m.getPopup().getElement()?.querySelector("textarea")?.focus(), 50); }
+  });
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const outcome = form.outcome.value, status = form.querySelector("[role=status]"), btn = form.querySelector("[type=submit]");
+    if (!outcome) { status.textContent = "Pick an outcome first."; return; }
+    btn.disabled = true; status.textContent = "Saving…";
+    try {
+      const res = await fetch("visits", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parcel_id: r.parcel_id, outcome, notes: form.notes.value }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `error ${res.status}`);
+      (VISITS[r.parcel_id] = VISITS[r.parcel_id] || []).push(body.visit);
+      formFor = null;
+      render();
+      markers[r.parcel_id]?.openPopup();
+      $("mapstatus").textContent = `Saved ${r.address}: ${outcome}.`;
+    } catch (err) {
+      status.textContent = `Couldn't save (${err.message}). Try again.`;
+      btn.disabled = false;
+    }
+  });
+  return el;
+}
 function initMap() {
   if (!window.L) { $("mapstatus").textContent = "The map could not load here."; $("map").hidden = true; $("locate").hidden = true; return; }
   map = L.map("map", { preferCanvas: true, scrollWheelZoom: false }).setView([40.66, -111.93], 11);
@@ -301,14 +399,17 @@ function drawMap(rows) {
   const pts = [];
   for (const r of rows) {
     if (r.lat == null) continue;
-    const color = colors[condKey(r.overall_condition || r.interior_condition)] || css("--muted");
-    const m = L.circleMarker([r.lat, r.lon], { radius: 6, weight: 1.5, color: css("--panel"), fillColor: color, fillOpacity: .9 })
-      .bindPopup(() => popup(r), { maxWidth: 280 });
+    const color = colors[condKey(r.overall_condition || r.interior_condition)] || css("--muted"), v = lastVisit(r);
+    // Not knocked yet: a dot in the condition colour. Knocked: a ring in the outcome colour.
+    const style = v ? { radius: 6, weight: 3, color: css(OUTCOME_COLOR[v.outcome] || "--done"), fillColor: css("--panel"), fillOpacity: .9 }
+      : { radius: 6, weight: 1.5, color: css("--panel"), fillColor: color, fillOpacity: .9 };
+    const m = L.circleMarker([r.lat, r.lon], style).bindPopup(() => popupEl(r), { maxWidth: 300, minWidth: 220, autoPanPaddingTopLeft: [48, 10], autoPanPaddingBottomRight: [10, 10] });
     m.addTo(layer); markers[r.parcel_id] = m; pts.push([r.lat, r.lon]);
   }
   const near = here && rows.filter(r => r._dist != null).reduce((a, r) => (!a || r._dist < a._dist ? r : a), null);
   $("mapstatus").textContent = `${pts.length} ${pts.length === 1 ? "home" : "homes"} on the map`
-    + (near ? ` · nearest is ${miles(near._dist)} away` : "");
+    + (near ? ` · nearest is ${miles(near._dist)} away` : "")
+    + ($("within").value && !here ? " · turn on your location to filter by distance" : "");
   // Frame the results until the viewer's location takes over.
   if (!here && pts.length && (!fitted || lastDrawn !== pts.length)) { map.fitBounds(pts, { padding: [20, 20], maxZoom: 15, animate: false }); fitted = true; }
   lastDrawn = pts.length;
@@ -349,9 +450,10 @@ function locate() {
 }
 
 function csv(rows) {
-  const keys = ["parcel_id", "address", "city", ...(SHOW_OWNER ? ["owner"] : []), "property_type", "year_built", "effective_year_built", "market_value", "overall_condition", "interior_condition", "exterior_condition", "visual_appeal", "score", "reasons", "last_transfer_date", "last_transfer_type", "distress_filings", "listing_status", "listing_price", "listed_date", "agent_name", "agent_phone", "agent_email", "office_name", "office_phone"];
+  const keys = ["parcel_id", "address", "city", ...(SHOW_OWNER ? ["owner"] : []), "property_type", "year_built", "effective_year_built", "market_value", "overall_condition", "interior_condition", "exterior_condition", "visual_appeal", "score", "reasons", "last_transfer_date", "last_transfer_type", "distress_filings", "listing_status", "listing_price", "listed_date", "agent_name", "agent_phone", "agent_email", "office_name", "office_phone", "last_outcome", "last_visit", "visited_by", "visit_notes", "visits"];
+  const visit = r => { const v = lastVisit(r) || {}; return { last_outcome: v.outcome, last_visit: v.visited_at, visited_by: v.visitor, visit_notes: v.notes, visits: (VISITS[r.parcel_id] || []).length || "" }; };
   const q = v => { const s = String(v ?? "").replace(/\s+/g, " ").trim(); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  return [keys.join(","), ...rows.map(r => keys.map(k => q(r[k])).join(","))].join("\n");
+  return [keys.join(","), ...rows.map(r => { const x = { ...r, ...visit(r) }; return keys.map(k => q(x[k])).join(","); })].join("\n");
 }
 
 $("t-cand").textContent = DATA.candidates.toLocaleString();
@@ -387,7 +489,7 @@ locate();  // asks for the viewer's location on load; the button retries or stop
 DOC_HEAD = '<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
 
 
-def build(con, show_owner=True, artifact=False):
+def build(con, show_owner=True, artifact=False, can_save=False):
     rows = assessor.query_parcels(con, flagged_only=False)
     keep = [c for c in assessor.EXPORT_COLS if c not in ("cama_as_of", "scraped_at") and (show_owner or c != "owner")]
     rows_out = [{k: r[k] for k in keep} for r in rows]
@@ -396,14 +498,22 @@ def build(con, show_owner=True, artifact=False):
             if r[k] is not None:
                 r[k] = round(float(r[k]), 5)
     cama = next((r["cama_as_of"] for r in rows if r["cama_as_of"]), "unknown")
-    data = {"candidates": con.execute("SELECT COUNT(*) FROM candidates").fetchone()[0], "rows": rows_out}
-    payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+    visits = {}
+    for pid, outcome, notes, visitor, at in con.execute(
+            "SELECT parcel_id, outcome, notes, visitor, visited_at FROM visits ORDER BY visited_at, id"):
+        visits.setdefault(pid, []).append({"outcome": outcome, "notes": notes if show_owner else None,
+                                           "visitor": visitor, "visited_at": at})
+    data = {"candidates": con.execute("SELECT COUNT(*) FROM candidates").fetchone()[0], "rows": rows_out, "visits": visits}
+    # "<" only occurs inside strings here, so escaping it keeps typed notes from closing the script tag.
+    payload = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c")
     page = (TEMPLATE
-            .replace("__DATA__", payload)
             .replace("__SHOW_OWNER__", "true" if show_owner else "false")
+            .replace("__CAN_SAVE__", "true" if can_save else "false")
+            .replace("__OUTCOMES__", json.dumps(list(assessor.OUTCOMES)))
             .replace("__CAMA__", html.escape(cama))
             .replace("__BUILT__", dt.date.today().strftime("%B %-d, %Y"))
-            .replace("__DOWNLOAD__", '<button class="btn" type="button" id="download">Download CSV</button>' if not artifact else ""))
+            .replace("__DOWNLOAD__", '<button class="btn" type="button" id="download">Download CSV</button>' if not artifact else "")
+            .replace("__DATA__", payload))  # last, so typed notes can't be mistaken for a placeholder
     return page if artifact else DOC_HEAD + page
 
 

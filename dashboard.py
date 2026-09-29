@@ -8,6 +8,7 @@ Serves a filterable table at / and the same filtered rows as CSV at /export.csv.
 import argparse
 import html
 import io
+import json
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -104,6 +105,37 @@ class Handler(BaseHTTPRequestHandler):
 
     def render_page(self, con, qs):
         return render(con, qs)
+
+    def visitor(self):
+        return "local"
+
+    def save_visit(self, pid, outcome, notes, visitor):
+        con = self.open_db()
+        try:
+            return assessor.add_visit(con, pid, outcome, notes, visitor)
+        finally:
+            con.close()
+
+    def do_POST(self):
+        """Log a "Stopped By" visit: JSON {parcel_id, outcome, notes} to /visits."""
+        if not self.authorized():
+            return
+        if not urllib.parse.urlsplit(self.path).path.endswith("/visits"):
+            return self._json(404, {"error": "not found"})
+        # Requiring a JSON body blocks cross-site form posts, which cannot set this content type.
+        if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
+            return self._json(415, {"error": "expected application/json"})
+        length = int(self.headers.get("Content-Length") or 0)
+        if not 0 < length <= 20000:
+            return self._json(413, {"error": "request too large"})
+        try:
+            pid, outcome, notes = assessor.validate_visit(json.loads(self.rfile.read(length)))
+        except ValueError as exc:  # includes malformed JSON
+            return self._json(400, {"error": str(exc)})
+        self._json(200, {"visit": self.save_visit(pid, outcome, notes, self.visitor())})
+
+    def _json(self, code, obj):
+        self._send(code, "application/json", json.dumps(obj).encode())
 
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)

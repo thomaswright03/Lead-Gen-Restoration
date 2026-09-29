@@ -24,6 +24,7 @@ RECORDER_COLS = ["parcel_id", "last_transfer_date", "last_transfer_type", "owner
 LISTING_COLS = ["parcel_id", "status", "price", "listed_date", "removed_date", "days_on_market", "agent_name",
                 "agent_phone", "agent_email", "office_name", "office_phone", "mls_name", "mls_number",
                 "listing_address", "checked_at"]
+VISIT_COLS = assessor.VISIT_COLS
 TABLES = (("candidates", CANDIDATE_COLS), ("parcels", PARCEL_COLS), ("recorder", RECORDER_COLS),
           ("listings", LISTING_COLS))
 
@@ -47,6 +48,10 @@ CREATE TABLE IF NOT EXISTS listings (
     parcel_id TEXT PRIMARY KEY, status TEXT, price BIGINT, listed_date TEXT, removed_date TEXT,
     days_on_market INTEGER, agent_name TEXT, agent_phone TEXT, agent_email TEXT, office_name TEXT,
     office_phone TEXT, mls_name TEXT, mls_number TEXT, listing_address TEXT, checked_at TEXT);
+CREATE TABLE IF NOT EXISTS visits (
+    id BIGSERIAL PRIMARY KEY, parcel_id TEXT NOT NULL, outcome TEXT NOT NULL, notes TEXT, visitor TEXT,
+    visited_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS visits_parcel ON visits (parcel_id);
 """
 
 
@@ -122,8 +127,21 @@ def load(url=None):
         for table, cols in TABLES:
             rows = pg.execute(f"SELECT {', '.join(cols)} FROM {table}").fetchall()
             lite.executemany(f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", rows)
+        # Visits are written on the hosted site only, so sync() never touches them; they are read back here.
+        rows = pg.execute(f"SELECT {', '.join(VISIT_COLS)} FROM visits ORDER BY visited_at, id").fetchall()
+        lite.executemany(f"INSERT INTO visits ({', '.join(VISIT_COLS)}) VALUES ({', '.join('?' * len(VISIT_COLS))})", rows)
     lite.commit()
     return lite
+
+
+def add_visit(pid, outcome, notes, visitor, url=None):
+    """Log a door-knock visit in Postgres and return it as a dict."""
+    with _connect(url) as pg:
+        pg.execute(SCHEMA)
+        row = pg.execute("INSERT INTO visits (parcel_id, outcome, notes, visitor, visited_at) "
+                         "VALUES (%s, %s, %s, %s, %s) RETURNING id, parcel_id, outcome, notes, visitor, visited_at",
+                         (pid, outcome, notes, visitor, assessor._now())).fetchone()
+    return dict(zip(VISIT_COLS, row))
 
 
 if __name__ == "__main__":
