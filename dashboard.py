@@ -16,7 +16,9 @@ import assessor
 TABLE_COLS = [("parcel_id", "Parcel"), ("address", "Address"), ("city", "City"), ("property_type", "Type"), ("owner", "Owner"),
               ("year_built", "Built"), ("effective_year_built", "Eff. built"), ("market_value", "Market value"),
               ("overall_condition", "Overall"), ("interior_condition", "Interior"),
-              ("exterior_condition", "Exterior"), ("visual_appeal", "Appeal"), ("score", "Score")]
+              ("exterior_condition", "Exterior"), ("visual_appeal", "Appeal"), ("score", "Score"),
+              ("last_transfer_date", "Last transfer"), ("listing_status", "Listing"), ("agent_name", "Listing agent"),
+              ("agent_phone", "Agent phone")]
 
 PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

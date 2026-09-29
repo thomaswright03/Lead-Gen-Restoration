@@ -37,12 +37,25 @@ The county's condition data is a yearly snapshot (the pages currently say "as it
 0 3 1 * *  cd /path/to/repo && python3 assessor.py candidates && python3 assessor.py run --max-age-days 180
 ```
 
+### Recent sales, distress filings and listing agents
+
+```
+python3 recorder.py [--limit 100] [--all]            # free: last deed and distress filings from the county recorder
+RENTCAST_API_KEY=... python3 listings.py              # listing agent contact for flagged homes on the market
+RENTCAST_API_KEY=... python3 listings.py --status Inactive --days-old 365   # recently delisted or sold
+```
+
+- `recorder.py` reads the Recorder's free public search (4 requests per parcel). It stores the last deed (the sale date), the owner of record and any notice of default, trustee's deed, lis pendens, lien or judgment in the last 3 years. Utah is a non-disclosure state, so sale prices and agents are not in public records. A Utah "trust deed" is a mortgage and isn't counted as a sale.
+- `listings.py` pulls RentCast sale listings around the Salt Lake Valley (500 per request; the free plan includes 50 requests a month) and matches them to parcels by street address. It stores the price, dates and the listing agent's and office's name, phone and email. RentCast's terms allow lawful direct marketing but prohibit sending unsolicited commercial email with the data.
+- The buyer's agent on a past sale is only available from the MLS (UtahRealEstate.com), which requires a broker data license.
+- The results page, CSV export and `pgstore.py sync` include these fields. The page has a Sales activity filter: sold in the last 12 months, for sale now, or distress filing.
+
 ### Hosting on Vercel
 
 The repo deploys to Vercel as one Python function (`api/index.py`) that serves the results page behind a password. Scraping still runs outside Vercel; results are pushed to Postgres.
 
 1. In the Vercel project, connect a Neon Postgres database (Storage) so `DATABASE_URL` is set, and add a `DASHBOARD_PASSWORD` environment variable. Any username works at the login prompt.
-2. After a scrape, push the results: `pip install "psycopg[binary]"`, then `DATABASE_URL=... python3 pgstore.py sync`.
+2. After a scrape, push the results: `pip install "psycopg[binary]"`, then `DATABASE_URL=... python3 pgstore.py sync`. Where port 5432 is blocked, `python3 pgstore.py sync --http` uses Neon's HTTPS SQL endpoint instead and needs no driver.
 
 The site refuses to serve anything until `DASHBOARD_PASSWORD` is set, because the results include owner names.
 
