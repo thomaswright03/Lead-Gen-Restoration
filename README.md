@@ -21,6 +21,7 @@ python3 assessor.py fetch 16-16-158-010-0000 ...     # specific parcels (or --fi
 python3 assessor.py rescore                          # after editing rules.json; no network
 python3 assessor.py export flagged.csv [--all] [--city Murray] [--min-score 9]
 python3 dashboard.py [--port 8000]                   # filterable table + CSV download at http://127.0.0.1:8000
+python3 snapshot.py results.html [--no-owner]        # one self-contained HTML page with filters, opens from disk
 python3 -m unittest discover -s tests                # tests (synthetic pages, no network)
 ```
 
