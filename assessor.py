@@ -167,6 +167,14 @@ def db(path=None):
         parcel_id TEXT PRIMARY KEY, address TEXT, city TEXT, built_yr INTEGER,
         eff_built_yr INTEGER, primary_res TEXT, market_value INTEGER,
         lir_as_of TEXT, added_at TEXT, last_error TEXT)""")
+    # Filled by recorder.py (county recorder) and listings.py (RentCast).
+    con.execute("""CREATE TABLE IF NOT EXISTS recorder (
+        parcel_id TEXT PRIMARY KEY, last_transfer_date TEXT, last_transfer_type TEXT,
+        owner_of_record TEXT, owner_since TEXT, distress_filings TEXT, documents_json TEXT, checked_at TEXT)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS listings (
+        parcel_id TEXT PRIMARY KEY, status TEXT, price INTEGER, listed_date TEXT, removed_date TEXT,
+        days_on_market INTEGER, agent_name TEXT, agent_phone TEXT, agent_email TEXT, office_name TEXT,
+        office_phone TEXT, mls_name TEXT, mls_number TEXT, listing_address TEXT, checked_at TEXT)""")
     return con
 
 
@@ -299,13 +307,23 @@ def run_batch(pids, rules, con, refresh=False, log=print):
 
 EXPORT_COLS = ["parcel_id", "address", "city", "owner", "property_type", "year_built", "effective_year_built",
                "market_value", "overall_condition", "interior_condition", "exterior_condition",
-               "visual_appeal", "score", "flagged", "reasons", "cama_as_of", "scraped_at"]
+               "visual_appeal", "score", "flagged", "reasons", "cama_as_of", "scraped_at",
+               "last_transfer_date", "last_transfer_type", "distress_filings",
+               "listing_status", "listing_price", "listed_date", "agent_name", "agent_phone", "agent_email",
+               "office_name", "office_phone"]
+# Where each export column comes from: p = parcels, c = candidates, r = recorder, l = listings.
+_COL_SOURCE = {"city": "c.city", "last_transfer_date": "r.last_transfer_date",
+               "last_transfer_type": "r.last_transfer_type", "distress_filings": "r.distress_filings",
+               "listing_status": "l.status", "listing_price": "l.price", "listed_date": "l.listed_date",
+               "agent_name": "l.agent_name", "agent_phone": "l.agent_phone", "agent_email": "l.agent_email",
+               "office_name": "l.office_name", "office_phone": "l.office_phone"}
 
 
 def query_parcels(con, flagged_only=True, city=None, min_score=None, order="score DESC"):
-    """Stored parcels joined with candidate city, as a list of dicts in EXPORT_COLS order."""
-    cols = ", ".join("c.city" if c == "city" else f"p.{c}" for c in EXPORT_COLS)
-    sql = f"SELECT {cols} FROM parcels p LEFT JOIN candidates c USING (parcel_id) WHERE 1 = 1"
+    """Stored parcels joined with city, recorder and listing data, as dicts in EXPORT_COLS order."""
+    cols = ", ".join(_COL_SOURCE.get(c, f"p.{c}") for c in EXPORT_COLS)
+    sql = (f"SELECT {cols} FROM parcels p LEFT JOIN candidates c USING (parcel_id) "
+           "LEFT JOIN recorder r USING (parcel_id) LEFT JOIN listings l USING (parcel_id) WHERE 1 = 1")
     args = []
     if flagged_only:
         sql += " AND p.flagged = 1"

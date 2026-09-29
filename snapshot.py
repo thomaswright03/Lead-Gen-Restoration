@@ -87,6 +87,9 @@ td.small { color: var(--muted); font-size: 12px; }
 .chip.POOR, .chip.SPEC { background: var(--poor-soft); color: var(--poor); }
 .chip.FAIR { background: var(--fair-soft); color: var(--fair); }
 .chip.none { background: transparent; color: var(--muted); font-weight: 400; }
+.chip.listed { background: var(--accent-soft); color: var(--accent); }
+.distress { color: var(--poor); }
+td.small { white-space: normal; min-width: 9em; }
 .score { font: 600 13px var(--mono); }
 .empty { padding: 24px; text-align: center; color: var(--muted); }
 .howto { padding: 14px; font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
@@ -117,6 +120,9 @@ td.small { color: var(--muted); font-size: 12px; }
         <label for="q">Search address or owner<input id="q" type="search" placeholder="e.g. 900 W"></label>
         <label for="cond">Overall condition<select id="cond">
           <option value="">Any</option><option value="POOR">Poor</option><option value="FAIR">Fair</option><option value="SPEC">Special obsolescence</option><option value="CONDO">Condo (interior only)</option>
+        </select></label>
+        <label for="activity">Sales activity<select id="activity">
+          <option value="">Any</option><option value="sold">Sold in last 12 months</option><option value="listed">For sale now</option><option value="distress">Distress filing (3 yrs)</option>
         </select></label>
         <label for="minscore">Min score<select id="minscore"><option value="0">Any</option><option value="3">3+</option><option value="6">6+</option><option value="9">9+</option></select></label>
         <label class="check" for="all"><input id="all" type="checkbox"> Include not flagged</label>
@@ -150,31 +156,35 @@ const COLS = [
   ["property_type", "Type", "small"], ["year_built", "Built", "num"], ["effective_year_built", "Eff. built", "num"],
   ["market_value", "Market value", "num"], ["overall_condition", "Overall", "cond"],
   ["interior_condition", "Interior", "cond"], ["exterior_condition", "Exterior", "cond"], ["score", "Score", "num score"],
+  ["last_transfer_date", "Last transfer", "transfer"], ["listing_status", "Listing", "listing"],
 ];
 const state = { city: "", sort: "score", dir: -1 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = v => Number(String(v || "").replace(/[^0-9.]/g, "")) || 0;
 const condKey = v => (v || "").split(" ")[0];
+const YEAR_AGO = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
 
 try { const saved = JSON.parse(localStorage.getItem("pcp-filters") || "{}"); Object.assign(state, saved.state || {});
-  for (const id of ["q", "cond", "minscore"]) if (saved[id] != null) $(id).value = saved[id];
+  for (const id of ["q", "cond", "minscore", "activity"]) if (saved[id] != null) $(id).value = saved[id];
   $("all").checked = !!saved.all; } catch (e) {}
 
-function save() { try { localStorage.setItem("pcp-filters", JSON.stringify({ state, q: $("q").value, cond: $("cond").value, minscore: $("minscore").value, all: $("all").checked })); } catch (e) {} }
+function save() { try { localStorage.setItem("pcp-filters", JSON.stringify({ state, q: $("q").value, cond: $("cond").value, minscore: $("minscore").value, activity: $("activity").value, all: $("all").checked })); } catch (e) {} }
 
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), cond = $("cond").value, min = +$("minscore").value, all = $("all").checked;
+  const act = $("activity").value;
   return DATA.rows.filter(r => (all || r.flagged)
     && (!state.city || r.city === state.city)
     && r.score >= min
+    && (!act || (act === "sold" ? (r.last_transfer_date || "") >= YEAR_AGO : act === "listed" ? r.listing_status === "Active" : !!r.distress_filings))
     && (!cond || (cond === "CONDO" ? !r.overall_condition && r.interior_condition : condKey(r.overall_condition) === cond))
     && (!q || (r.address || "").toLowerCase().includes(q) || (SHOW_OWNER && (r.owner || "").toLowerCase().includes(q)) || r.parcel_id.includes(q)));
 }
 
 function sorted(rows) {
   const k = state.sort, d = state.dir;
-  const val = r => k === "market_value" ? money(r[k]) : (["score", "year_built", "effective_year_built"].includes(k) ? Number(r[k]) || 0 : String(r[k] || "").toLowerCase());
+  const val = r => k === "market_value" ? money(r[k]) : k === "listing_status" ? (r[k] === "Active" ? 2 : r[k] ? 1 : 0) : (["score", "year_built", "effective_year_built"].includes(k) ? Number(r[k]) || 0 : String(r[k] || "").toLowerCase());
   return rows.slice().sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * d || a.parcel_id.localeCompare(b.parcel_id));
 }
 
@@ -192,6 +202,14 @@ function cell(r, [key, , cls]) {
   const v = r[key];
   if (cls === "pid") return `<td class="pid"><a href="${DETAIL}${esc(v)}" target="_blank" rel="noopener">${esc(v)}</a></td>`;
   if (cls === "cond") return `<td>${v ? `<span class="chip ${esc(condKey(v))}">${esc(v)}</span>` : `<span class="chip none">n/a</span>`}</td>`;
+  if (cls === "transfer") return `<td class="small">${v ? `${esc(v)}<br>${esc((r.last_transfer_type || "").toLowerCase())}` : ""}${r.distress_filings ? `<br><span class="distress">${esc(r.distress_filings)}</span>` : ""}</td>`;
+  if (cls === "listing") {
+    if (!v) return "<td></td>";
+    const contact = [r.agent_name, r.agent_phone, r.agent_email].filter(Boolean).map(esc).join(" · ");
+    const office = [r.office_name, r.office_phone].filter(Boolean).map(esc).join(" · ");
+    const price = r.listing_price ? " $" + Number(r.listing_price).toLocaleString() : "";
+    return `<td class="small"><span class="chip ${v === "Active" ? "listed" : "none"}">${esc(v)}</span>${price}${contact ? `<br>${contact}` : ""}${office ? `<br>${office}` : ""}</td>`;
+  }
   if (key === "market_value") return `<td class="num">${esc(String(v || "").replace(/\s+/g, ""))}</td>`;
   return `<td class="${cls}">${esc(v)}</td>`;
 }
@@ -207,7 +225,7 @@ function render() {
 }
 
 function csv(rows) {
-  const keys = ["parcel_id", "address", "city", ...(SHOW_OWNER ? ["owner"] : []), "property_type", "year_built", "effective_year_built", "market_value", "overall_condition", "interior_condition", "exterior_condition", "visual_appeal", "score", "reasons"];
+  const keys = ["parcel_id", "address", "city", ...(SHOW_OWNER ? ["owner"] : []), "property_type", "year_built", "effective_year_built", "market_value", "overall_condition", "interior_condition", "exterior_condition", "visual_appeal", "score", "reasons", "last_transfer_date", "last_transfer_type", "distress_filings", "listing_status", "listing_price", "listed_date", "agent_name", "agent_phone", "agent_email", "office_name", "office_phone"];
   const q = v => { const s = String(v ?? "").replace(/\s+/g, " ").trim(); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   return [keys.join(","), ...rows.map(r => keys.map(k => q(r[k])).join(","))].join("\n");
 }
