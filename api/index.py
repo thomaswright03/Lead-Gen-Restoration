@@ -6,8 +6,10 @@ Environment (set in the Vercel project):
 """
 import base64
 import hmac
+import html
 import os
 import sys
+import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -18,14 +20,26 @@ import snapshot  # noqa: E402
 
 
 class handler(dashboard.Handler):
+    db_note = None
+
     def open_db(self):
         try:
-            return pgstore.load()
+            url = pgstore._database_url()
         except RuntimeError:  # no database connected yet: show an empty page instead of an error
+            self.db_note = "No database is connected: DATABASE_URL (or POSTGRES_URL) is not set for this deployment."
             return pgstore.assessor.db(":memory:")
+        con = pgstore.load(url)
+        if not con.execute("SELECT COUNT(*) FROM parcels").fetchone()[0]:
+            host = urllib.parse.urlsplit(url).hostname or "unknown host"
+            self.db_note = f"The connected database ({host.split('.')[0]}) has no results yet."
+        return con
 
     def render_page(self, con, qs):
-        return snapshot.build(con)
+        page = snapshot.build(con)
+        if self.db_note:
+            banner = f'<div class="wrap" style="padding-block:12px 0"><p class="sub" role="status">{html.escape(self.db_note)}</p></div>'
+            page = page.replace('<div class="wrap">', banner + '\n<div class="wrap">', 1)
+        return page
 
     def authorized(self):
         password = os.environ.get("DASHBOARD_PASSWORD")
