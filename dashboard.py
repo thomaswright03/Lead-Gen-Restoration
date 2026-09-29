@@ -46,7 +46,7 @@ td.reasons {{ white-space:normal; color:var(--muted); font-size:12px; min-width:
   <label style="flex-direction:row;align-items:center;gap:6px;color:inherit">
     <input type="checkbox" name="all" value="1" {all_checked}> Include unflagged</label>
   <button type="submit">Filter</button>
-  <a href="/export.csv?{query}">Download CSV ({count} rows)</a>
+  <a href="export.csv?{query}">Download CSV ({count} rows)</a>
 </form>
 <div class="wrap"><table><thead><tr>{head}<th>Why flagged</th></tr></thead><tbody>{body}</tbody></table></div>
 </body></html>"""
@@ -94,21 +94,32 @@ def render(con, qs):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def open_db(self):
+        return assessor.db()
+
+    def authorized(self):
+        return True
+
+    def render_page(self, con, qs):
+        return render(con, qs)
+
     def do_GET(self):
         url = urllib.parse.urlsplit(self.path)
         qs = urllib.parse.parse_qs(url.query)
-        con = assessor.db()
+        if not self.authorized():
+            return
+        if url.path.endswith("favicon.ico"):
+            return self._send(404, "text/plain", b"not found")
+        con = self.open_db()
         try:
-            if url.path == "/":
-                self._send(200, "text/html; charset=utf-8", render(con, qs).encode())
-            elif url.path == "/export.csv":
+            if not url.path.endswith("/export.csv"):
+                self._send(200, "text/html; charset=utf-8", self.render_page(con, qs).encode())
+            else:
                 city, min_score, include_all = _filters(qs)
                 buf = io.StringIO()
                 assessor.write_csv(assessor.query_parcels(con, not include_all, city, min_score), buf)
                 self._send(200, "text/csv; charset=utf-8", buf.getvalue().encode(),
                            {"Content-Disposition": 'attachment; filename="flagged_parcels.csv"'})
-            else:
-                self._send(404, "text/plain", b"not found")
         finally:
             con.close()
 

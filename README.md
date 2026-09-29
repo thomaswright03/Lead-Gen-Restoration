@@ -37,6 +37,15 @@ The county's condition data is a yearly snapshot (the pages currently say "as it
 0 3 1 * *  cd /path/to/repo && python3 assessor.py candidates && python3 assessor.py run --max-age-days 180
 ```
 
+### Hosting on Vercel
+
+The repo deploys to Vercel as one Python function (`api/index.py`) that serves the results page behind a password. Scraping still runs outside Vercel; results are pushed to Postgres.
+
+1. In the Vercel project, connect a Neon Postgres database (Storage) so `DATABASE_URL` is set, and add a `DASHBOARD_PASSWORD` environment variable. Any username works at the login prompt.
+2. After a scrape, push the results: `pip install "psycopg[binary]"`, then `DATABASE_URL=... python3 pgstore.py sync`.
+
+The site refuses to serve anything until `DASHBOARD_PASSWORD` is set, because the results include owner names.
+
 ## Scoring
 
 `rules.json` assigns points per field value. The default threshold of 2 flags any Fair or worse rating on overall, interior or exterior condition.
