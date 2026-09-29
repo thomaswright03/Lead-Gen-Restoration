@@ -1,8 +1,9 @@
 """Vercel entry point: the dashboard, behind a password, reading results from Postgres.
 
 Environment (set in the Vercel project):
-    DATABASE_URL        Postgres connection string (the Neon integration sets it)
-    DASHBOARD_PASSWORD  password for the browser login prompt; any username works
+    DATABASE_URL           Postgres connection string (the Neon integration sets it)
+    ASSESSOR_DATABASE_URL  overrides DATABASE_URL when the integration's database isn't the one with results
+    DASHBOARD_PASSWORD     password for the browser login prompt; any username works
 """
 import base64
 import hmac
@@ -26,7 +27,7 @@ class handler(dashboard.Handler):
         try:
             url = pgstore._database_url()
         except RuntimeError:  # no database connected yet: show an empty page instead of an error
-            self.db_note = "No database is connected: DATABASE_URL (or POSTGRES_URL) is not set for this deployment."
+            self.db_note = "No database is connected: ASSESSOR_DATABASE_URL or DATABASE_URL is not set for this deployment."
             return pgstore.assessor.db(":memory:")
         con = pgstore.load(url)
         if not con.execute("SELECT COUNT(*) FROM parcels").fetchone()[0]:

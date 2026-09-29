@@ -1,6 +1,6 @@
 """Mirror results to Postgres for the hosted dashboard, and read them back.
 
-    python3 pgstore.py sync          # push local assessor.db to $DATABASE_URL
+    python3 pgstore.py sync          # push local assessor.db to $ASSESSOR_DATABASE_URL or $DATABASE_URL
     python3 pgstore.py sync --http   # same, over Neon's HTTPS SQL endpoint (for networks that block port 5432)
 
 Needs `pip install "psycopg[binary]"`. The scraper itself stays standard-library only;
@@ -50,11 +50,7 @@ CREATE TABLE IF NOT EXISTS listings (
 
 def _connect(url=None):
     import psycopg
-    # The Vercel Neon integration names the variable <PREFIX>_URL; accept the common prefixes.
-    url = url or next((os.environ[k] for k in ("DATABASE_URL", "POSTGRES_URL", "STORAGE_URL") if os.environ.get(k)), None)
-    if not url:
-        raise RuntimeError("DATABASE_URL is not set")
-    return psycopg.connect(url)
+    return psycopg.connect(_database_url(url))
 
 
 def _upsert_sql(table, cols):
@@ -76,8 +72,13 @@ def sync(lite, url=None):
     return counts
 
 
+# ASSESSOR_DATABASE_URL wins so a deployment can point at the results database even when a storage
+# integration manages DATABASE_URL. The Neon integration names its variable <PREFIX>_URL.
+URL_VARS = ("ASSESSOR_DATABASE_URL", "DATABASE_URL", "POSTGRES_URL", "STORAGE_URL")
+
+
 def _database_url(url=None):
-    url = url or next((os.environ[k] for k in ("DATABASE_URL", "POSTGRES_URL", "STORAGE_URL") if os.environ.get(k)), None)
+    url = url or next((os.environ[k] for k in URL_VARS if os.environ.get(k)), None)
     if not url:
         raise RuntimeError("DATABASE_URL is not set")
     return url

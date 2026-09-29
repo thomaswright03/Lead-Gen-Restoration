@@ -54,7 +54,7 @@ RENTCAST_API_KEY=... python3 listings.py --status Inactive --days-old 365   # re
 
 The repo deploys to Vercel as one Python function (`api/index.py`) that serves the results page behind a password. Scraping still runs outside Vercel; results are pushed to Postgres.
 
-1. In the Vercel project, connect a Neon Postgres database (Storage) so `DATABASE_URL` is set, and add a `DASHBOARD_PASSWORD` environment variable. Any username works at the login prompt.
+1. In the Vercel project, connect a Neon Postgres database (Storage) so `DATABASE_URL` is set, and add a `DASHBOARD_PASSWORD` environment variable. Any username works at the login prompt. If the integration's database isn't the one you sync results into, set `ASSESSOR_DATABASE_URL` to the results database's connection string; it takes priority over `DATABASE_URL`.
 2. After a scrape, push the results: `pip install "psycopg[binary]"`, then `DATABASE_URL=... python3 pgstore.py sync`. Where port 5432 is blocked, `python3 pgstore.py sync --http` uses Neon's HTTPS SQL endpoint instead and needs no driver.
 
 The site refuses to serve anything until `DASHBOARD_PASSWORD` is set, because the results include owner names.
