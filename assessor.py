@@ -167,6 +167,11 @@ def db(path=None):
         parcel_id TEXT PRIMARY KEY, address TEXT, city TEXT, built_yr INTEGER,
         eff_built_yr INTEGER, primary_res TEXT, market_value INTEGER,
         lir_as_of TEXT, added_at TEXT, last_error TEXT)""")
+    # Parcel centroid (WGS84) for the map; added after the first release, so older databases get the columns here.
+    have = {r[1] for r in con.execute("PRAGMA table_info(candidates)")}
+    for col in ("lat", "lon"):
+        if col not in have:
+            con.execute(f"ALTER TABLE candidates ADD COLUMN {col} REAL")
     # Filled by recorder.py (county recorder) and listings.py (RentCast).
     con.execute("""CREATE TABLE IF NOT EXISTS recorder (
         parcel_id TEXT PRIMARY KEY, last_transfer_date TEXT, last_transfer_type TEXT,
@@ -236,7 +241,8 @@ def pull_candidates(con, where, limit=None):
     offset, added = 0, 0
     while True:
         params = {"where": where, "outFields": ",".join(LIR_FIELDS), "orderByFields": "OBJECTID",
-                  "resultOffset": offset, "resultRecordCount": LIR_PAGE, "returnGeometry": "false", "f": "json"}
+                  "resultOffset": offset, "resultRecordCount": LIR_PAGE, "returnGeometry": "false",
+                  "returnCentroid": "true", "outSR": 4326, "f": "json"}
         data = json.loads(_get(LIR_URL + "?" + urllib.parse.urlencode(params), timeout=60))
         if "error" in data:
             raise RuntimeError(f"parcel layer query failed: {data['error']}")
@@ -249,15 +255,16 @@ def pull_candidates(con, where, limit=None):
                 continue
             asof = a.get("CURRENT_ASOF")
             asof = dt.datetime.fromtimestamp(asof / 1000, dt.timezone.utc).date().isoformat() if asof else None
+            lat, lon = _centroid(f)
             con.execute("""INSERT INTO candidates (parcel_id, address, city, built_yr, eff_built_yr,
-                               primary_res, market_value, lir_as_of, added_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               primary_res, market_value, lir_as_of, added_at, lat, lon)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ON CONFLICT(parcel_id) DO UPDATE SET address = excluded.address, city = excluded.city,
                                built_yr = excluded.built_yr, eff_built_yr = excluded.eff_built_yr,
                                primary_res = excluded.primary_res, market_value = excluded.market_value,
-                               lir_as_of = excluded.lir_as_of""",
+                               lir_as_of = excluded.lir_as_of, lat = excluded.lat, lon = excluded.lon""",
                         (pid, a["PARCEL_ADD"], a["PARCEL_CITY"], a["BUILT_YR"], a["EFFBUILT_YR"],
-                         a["PRIMARY_RES"], a["TOTAL_MKT_VALUE"], asof, _now()))
+                         a["PRIMARY_RES"], a["TOTAL_MKT_VALUE"], asof, _now(), lat, lon))
             added += 1
             if limit and added >= limit:
                 con.commit()
@@ -266,6 +273,32 @@ def pull_candidates(con, where, limit=None):
         if not feats or (len(feats) < LIR_PAGE and not data.get("exceededTransferLimit")):
             return added
         offset += len(feats)
+
+
+def _centroid(feature):
+    c = feature.get("centroid") or {}
+    return (round(c["y"], 6), round(c["x"], 6)) if "x" in c and "y" in c else (None, None)
+
+
+def fill_coords(con, batch=50):
+    """Look up map coordinates for candidates pulled before the parcel query returned them."""
+    pids = [r[0] for r in con.execute("SELECT parcel_id FROM candidates WHERE lat IS NULL")]
+    for i in range(0, len(pids), batch):
+        # Normalized 14-digit IDs are safe to inline. Small batches keep the GET URL short enough for the server.
+        ids = ", ".join(f"'{p}'" for p in pids[i:i + batch])
+        params = {"where": f"PARCEL_ID IN ({ids})", "outFields": "PARCEL_ID", "returnGeometry": "false",
+                  "returnCentroid": "true", "outSR": 4326, "resultRecordCount": LIR_PAGE, "f": "json"}
+        data = json.loads(_get(LIR_URL + "?" + urllib.parse.urlencode(params), timeout=60))
+        if "error" in data:
+            raise RuntimeError(f"parcel layer query failed: {data['error']}")
+        for f in data.get("features", []):
+            lat, lon = _centroid(f)
+            if lat is not None:  # a parcel split into several polygons appears more than once; any centroid will do
+                con.execute("UPDATE candidates SET lat = ?, lon = ? WHERE parcel_id = ?",
+                            (lat, lon, normalize_pid(f["attributes"]["PARCEL_ID"])))
+        con.commit()
+    missing = con.execute("SELECT COUNT(*) FROM candidates WHERE lat IS NULL").fetchone()[0]
+    return len(pids) - missing, len(pids)
 
 
 def pending(con, max_age_days=None, limit=None):
@@ -310,13 +343,14 @@ EXPORT_COLS = ["parcel_id", "address", "city", "owner", "property_type", "year_b
                "visual_appeal", "score", "flagged", "reasons", "cama_as_of", "scraped_at",
                "last_transfer_date", "last_transfer_type", "distress_filings",
                "listing_status", "listing_price", "listed_date", "agent_name", "agent_phone", "agent_email",
-               "office_name", "office_phone"]
+               "office_name", "office_phone", "lat", "lon"]
 # Where each export column comes from: p = parcels, c = candidates, r = recorder, l = listings.
 _COL_SOURCE = {"city": "c.city", "last_transfer_date": "r.last_transfer_date",
                "last_transfer_type": "r.last_transfer_type", "distress_filings": "r.distress_filings",
                "listing_status": "l.status", "listing_price": "l.price", "listed_date": "l.listed_date",
                "agent_name": "l.agent_name", "agent_phone": "l.agent_phone", "agent_email": "l.agent_email",
-               "office_name": "l.office_name", "office_phone": "l.office_phone"}
+               "office_name": "l.office_name", "office_phone": "l.office_phone",
+               "lat": "c.lat", "lon": "c.lon"}
 
 
 def query_parcels(con, flagged_only=True, city=None, min_score=None, order="score DESC"):
@@ -364,6 +398,7 @@ def main(argv=None):
     f.add_argument("--refresh", action="store_true", help="ignore cached HTML")
 
     sub.add_parser("rescore", help="re-apply rules.json to stored parcels")
+    sub.add_parser("coords", help="look up map coordinates for candidates that lack them")
 
     e = sub.add_parser("export", help="write parcels to CSV")
     e.add_argument("path")
@@ -397,6 +432,9 @@ def main(argv=None):
         run_batch(good, rules, con, args.refresh)
     elif args.cmd == "rescore":
         print(f"rescored {rescore(con, rules)} parcels")
+    elif args.cmd == "coords":
+        found, total = fill_coords(con)
+        print(f"coordinates found for {found} of {total} candidates")
     elif args.cmd == "export":
         rows = query_parcels(con, not args.all, args.city, args.min_score)
         with open(args.path, "w", newline="") as fh:
