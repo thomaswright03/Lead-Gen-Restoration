@@ -1,0 +1,11 @@
+{
+  "_comment": "Scoring rules for flagging poor-condition parcels. Points are added per field whose value matches. A parcel is flagged when its score reaches flag_threshold. Condition scale (SLCo Residence Record field descriptions): EXCELLENT > VERY GOOD > GOOD > AVERAGE > FAIR ('maintenance, rehabilitation, and replacement needed on many items') > POOR ('major repairs needed'). Overall Condition also allows SPECIAL (special obsolescence).",
+  "flag_threshold": 2,
+  "fields": {
+    "residence.Overall Condition":  {"POOR": 4, "FAIR": 2, "SPECIAL": 3},
+    "residence.Interior Condition": {"POOR": 3, "FAIR": 2},
+    "residence.Exterior Condition": {"POOR": 3, "FAIR": 2},
+    "residence.Visual Appeal":      {"POOR": 1},
+    "detached.Condition":           {"POOR": 1}
+  }
+}

@@ -1,0 +1,4 @@
+assessor.db
+cache/
+*.csv
+__pycache__/
