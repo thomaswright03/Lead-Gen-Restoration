@@ -1,50 +1,71 @@
-# Salt Lake County assessor condition scraper (Phase 1)
+# Salt Lake County poor-condition parcel finder
 
-Checked 2026-09-29.
+Finds homes the Salt Lake County Assessor has rated in poor condition and lists them for restoration lead generation. Python 3 standard library only.
 
-## What condition data exists
+## How it works
 
-Every residential parcel page (`valuationInfoExpanded.cfm?parcel_id=<14 digits>`) has a Residence Record with appraiser-coded ratings. The scale comes from the county's own field definitions (`FieldDescriptions/residenceRecord.html`):
+1. **Candidates** come from Utah UGRC's free `Parcels_SaltLake_LIR` layer (394,610 parcels). The assessor's *effective year built* reflects a building's remaining life rather than its age, so homes whose effective year is far in the past are the likely poor ones. The default cutoff is before 1990, which gives about 1,130 parcels countywide.
+2. **Fetch** pulls each candidate's county detail page (`valuationInfoExpanded.cfm?parcel_id=<14 digits>`) at one request every 3 seconds. Raw HTML is cached so each page is fetched only once.
+3. **Score** applies `rules.json` to the parsed condition ratings and flags parcels at or above the threshold.
+4. **Review** the results in the dashboard or export them to CSV.
 
-| Field | Values | Useful for flagging? |
-|---|---|---|
-| Overall / Interior / Exterior Condition | Excellent, Very Good, Good, Average, **Fair** ("maintenance, rehabilitation, and replacement needed on many items"), **Poor** ("major repairs needed"); Overall also allows Special (obsolescence) | Yes, the main signal |
-| Visual Appeal | Superior / Average / Poor (curb appeal vs. neighborhood) | Weak extra signal |
-| Detached structure Condition | Same scale, per garage/shed | Small extra signal |
-| Kitchen / Bath Quality | Luxury / Modern / Standard / Basic | Quality of finish, not condition |
-| Maintenance | High / Average / Minimum | Material type, not condition; ignored |
-| Year Built vs Effective Year Built | years | Good proxy for "never renovated" |
-
-There is no room-by-room condition. The finest granularity is interior vs exterior (plus garage). Data on the page is a CAMA snapshot ("as it was, on May 22, 2026"), so it refreshes roughly yearly.
-
-## Access and legal notes
-
-- robots.txt (`apps.saltlakecounty.gov/robots.txt`): the `Disallow` rules sit under `User-agent: ReadableBot`; nothing blocks the assessor detail pages for other agents. `/search` is listed and the parcel search results page loads reCAPTCHA v3. This tool never uses the search or touches the captcha: it goes straight to detail pages by parcel ID.
-- County disclaimer (`saltlakecounty.gov/disclaimer/`) is an as-is/no-warranty notice. There's no terms-of-use clause about automated access or commercial use.
-- Detail pages carry `<meta name="robots" content="noindex, nofollow">`. That's aimed at search engines, not a use restriction.
-- **Official alternative:** the Assessor sells the full CAMA database (residential and commercial characteristics) for **$1,500** (listed as the 2025 database; call 385-468-7972 or email assessor@slco.org for a sample). For countywide coverage this is the sanctioned route and avoids ~395k page requests.
-- **Free open data:** Utah UGRC's `Parcels_SaltLake_LIR` feature service lists all 394,610 parcels with parcel ID, address, year built, effective year built, value and primary-residence flag. It has no condition field and no owner name. It makes a free candidate list, and sorting by oldest effective year surfaced three Poor-condition homes out of three checked.
-- I found nothing here that forbids this use. The outreach side (phone/text rules, door-to-door solicitor permits, referral-fee arrangements) wasn't researched and deserves a legal check before anyone contacts owners.
+In the first 24 real candidates checked, 21 came back flagged.
 
 ## Usage
 
-Python 3 standard library only.
-
 ```
-python3 assessor.py fetch 16-16-158-010-0000 16184590180000   # or --file parcels.txt
-python3 assessor.py export flagged.csv          # flagged only; --all for everything
+python3 assessor.py candidates                       # default: effective year built before 1990
+python3 assessor.py candidates --max-eff-year 1995 --city "Salt Lake City" --owner-occupied
+python3 assessor.py run [--limit 50]                 # fetch + score candidates not fetched yet; safe to stop and resume
+python3 assessor.py fetch 16-16-158-010-0000 ...     # specific parcels (or --file parcels.txt)
+python3 assessor.py rescore                          # after editing rules.json; no network
+python3 assessor.py export flagged.csv [--all] [--city Murray] [--min-score 9]
+python3 dashboard.py [--port 8000]                   # filterable table + CSV download at http://127.0.0.1:8000
+python3 -m unittest discover -s tests                # tests (synthetic pages, no network)
 ```
 
-- Raw HTML cached in `cache/`, results in `assessor.db` (SQLite, table `parcels`, full parsed record in `raw_json`).
-- One request every 3 s, honest User-Agent, one fetch per parcel unless `--refresh`.
+- Data lives in `assessor.db` (SQLite: `candidates` from the state layer, `parcels` with scraped results and the full parsed record in `raw_json`) and `cache/`. Set `ASSESSOR_DB` / `ASSESSOR_CACHE` to keep them elsewhere, and `ASSESSOR_DELAY` to change the request spacing.
 - `cache/`, `assessor.db` and CSV exports are git-ignored because they contain owner names.
-- Scoring lives in `rules.json` (points per field value, `flag_threshold`, default 2 = any Fair or worse on overall/interior/exterior).
+- If the county returns 403 or 429, `run` stops instead of retrying. Run it again later and it picks up where it left off.
 
-## Sample run
+### Scheduling
 
-| Parcel | Address | Overall / Int / Ext | Score | Flagged |
-|---|---|---|---|---|
-| 16184590180000 | 435 E Redondo Ave | Poor / Poor / Poor (type 993 "RESID (SALVAGE)") | 12 | yes |
-| 16051780130000 | 858 E 200 S | Poor / Poor / Poor (LLC owner) | 10 | yes |
-| 16064800070000 | 578 E 600 S | Poor / Fair / Poor | 9 | yes |
-| 16161580100000 | 1450 E 1700 S | Average / Average / Average | 0 | no |
+The county's condition data is a yearly snapshot (the pages currently say "as it was, on May 22, 2026"), so a monthly job is plenty:
+
+```
+0 3 1 * *  cd /path/to/repo && python3 assessor.py candidates && python3 assessor.py run --max-age-days 180
+```
+
+## Scoring
+
+`rules.json` assigns points per field value. The default threshold of 2 flags any Fair or worse rating on overall, interior or exterior condition.
+
+| Field | Points |
+|---|---|
+| Overall Condition | Poor 4, Special obsolescence ("SPEC OBSOL") 3, Fair 2 |
+| Interior / Exterior Condition | Poor 3, Fair 2 |
+| Condo unit Interior Condition | Poor 3, Fair 2 |
+| Visual Appeal | Poor 1 |
+| Detached structure (garage, shed) Condition | Poor 1 |
+
+## What condition data exists
+
+Ratings come from the county's own field definitions (`FieldDescriptions/residenceRecord.html`):
+
+| Field | Values | Used? |
+|---|---|---|
+| Overall / Interior / Exterior Condition | Excellent, Very Good, Good, Average, **Fair** ("maintenance, rehabilitation, and replacement needed on many items"), **Poor** ("major repairs needed"); Overall also allows special obsolescence | Main signal |
+| Condo unit Interior Condition | Same scale as single letters (P, F, A...) | Yes. Condos have no exterior rating |
+| Visual Appeal | Superior / Average / Poor (curb appeal vs. neighborhood) | Small extra signal |
+| Detached structure Condition | Same scale, per garage/shed | Small extra signal |
+| Kitchen / Bath Quality | Luxury / Modern / Standard / Basic | No. Finish level, not wear |
+| Maintenance | High / Average / Minimum | No. Describes material type |
+
+There is no room-by-room condition. The finest detail is interior vs exterior, plus garage.
+
+## Access notes
+
+- robots.txt (`apps.saltlakecounty.gov/robots.txt`): the `Disallow` rules sit under `User-agent: ReadableBot`; nothing blocks the detail pages for other agents. The parcel search results page loads reCAPTCHA v3, so this tool never uses the search. It goes straight to detail pages by parcel ID.
+- The county disclaimer (`saltlakecounty.gov/disclaimer/`) is an as-is/no-warranty notice with no clause about automated access.
+- **Official bulk alternative:** the Assessor sells the full CAMA database for $1,500 (385-468-7972, assessor@slco.org). That database would cover every parcel with no scraping.
+- The state layer's effective year can lag the county page, especially for condos, so treat it as a pre-filter only.
