@@ -40,6 +40,13 @@ class HostedHandlerTest(unittest.TestCase):
             def open_db(self):
                 return assessor.db(db_path)
 
+            def save_visit(self, pid, outcome, notes, visitor):  # stands in for Postgres
+                con = assessor.db(db_path)
+                try:
+                    return assessor.add_visit(con, pid, outcome, notes, visitor)
+                finally:
+                    con.close()
+
             def log_message(self, *args):
                 pass
 
@@ -77,6 +84,33 @@ class HostedHandlerTest(unittest.TestCase):
         status, body = self.get("/export.csv", "s3cret")
         self.assertEqual(status, 200)
         self.assertTrue(body.startswith("parcel_id,"))
+
+    def post(self, body, password="s3cret", user="Dana", ctype="application/json"):
+        req = urllib.request.Request(self.base + "/visits", data=body.encode(), method="POST",
+                                     headers={"Content-Type": ctype})
+        req.add_header("Authorization", "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode())
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, json.loads(resp.read())
+        except urllib.error.HTTPError as exc:
+            body = exc.read()
+            return exc.code, json.loads(body) if exc.headers.get("Content-Type") == "application/json" else body
+
+    def test_stopped_by_visits(self):
+        os.environ["DASHBOARD_PASSWORD"] = "s3cret"
+        ok = json.dumps({"parcel_id": "11111111111111", "outcome": "Follow Up", "notes": "Back after 5 </script>"})
+        self.assertEqual(self.post(ok, password="wrong")[0], 401)
+        self.assertEqual(self.post(ok, ctype="text/plain")[0], 415)
+        self.assertEqual(self.post(json.dumps({"parcel_id": "11111111111111", "outcome": "Maybe"}))[0], 400)
+        self.assertEqual(self.post("not json")[0], 400)
+        status, body = self.post(ok)
+        self.assertEqual(status, 200)
+        self.assertEqual((body["visit"]["outcome"], body["visit"]["visitor"]), ("Follow Up", "Dana"))
+        status, page = self.get("/", "s3cret")
+        self.assertIn('"outcome":"Follow Up"', page)
+        self.assertIn("Back after 5 \\u003c/script>", page)
+        self.assertNotIn("5 </script>", page)
+        self.assertIn("const CAN_SAVE = true;", page)
 
 
 if __name__ == "__main__":

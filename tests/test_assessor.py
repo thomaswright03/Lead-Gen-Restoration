@@ -127,6 +127,16 @@ class CoordsTest(unittest.TestCase):
         self.assertTrue({"lat", "lon"} <= cols)
 
 
+class VisitTest(unittest.TestCase):
+    def test_validate_visit(self):
+        self.assertEqual(assessor.validate_visit({"parcel_id": "16-16-158-010-0000", "outcome": "No Contact", "notes": " hi "}),
+                         ("16161580100000", "No Contact", "hi"))
+        for bad in ({"parcel_id": "123", "outcome": "No Contact"}, {"parcel_id": "16161580100000", "outcome": "no contact"},
+                    {"parcel_id": "16161580100000", "outcome": "Interested", "notes": "x" * 5001}, ["not", "a", "dict"]):
+            with self.assertRaises(ValueError):
+                assessor.validate_visit(bad)
+
+
 class WhereTest(unittest.TestCase):
     def test_where_clause(self):
         w = assessor.lir_where(1990, city="O'Brien", owner_occupied=True)

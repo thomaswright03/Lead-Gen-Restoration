@@ -28,6 +28,7 @@ python3 -m unittest discover -s tests                # tests (synthetic pages, n
 
 - Data lives in `assessor.db` (SQLite: `candidates` from the state layer, `parcels` with scraped results and the full parsed record in `raw_json`) and `cache/`. Set `ASSESSOR_DB` / `ASSESSOR_CACHE` to keep them elsewhere, and `ASSESSOR_DELAY` to change the request spacing.
 - The results page has a map of the homes matching the current filters (Poor by default on a first visit). It asks for the viewer's location, sorts the table by distance, follows them as they walk, and links each home to directions. Location needs HTTPS, which the Vercel site has.
+- On the hosted site, each map pin has a **Stopped By** button: add notes, pick an outcome (Interested, Follow Up, Not Interested, Already Handled, Not Qualified, No Contact, Do Not Contact) and Save. Visits go in the Postgres `visits` table with the login username as the visitor, so each person should sign in with their own name. `pgstore.py sync` never touches that table. Knocked homes show as rings in the outcome's colour, and the Knocked filter separates them from homes not visited yet.
 - `cache/`, `assessor.db` and CSV exports are git-ignored because they contain owner names.
 - If the county returns 403 or 429, `run` stops instead of retrying. Run it again later and it picks up where it left off.
 

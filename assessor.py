@@ -180,7 +180,39 @@ def db(path=None):
         parcel_id TEXT PRIMARY KEY, status TEXT, price INTEGER, listed_date TEXT, removed_date TEXT,
         days_on_market INTEGER, agent_name TEXT, agent_phone TEXT, agent_email TEXT, office_name TEXT,
         office_phone TEXT, mls_name TEXT, mls_number TEXT, listing_address TEXT, checked_at TEXT)""")
+    # Door-knocking log from the results page ("Stopped By"). One row per visit; the hosted copy is the real one.
+    con.execute("""CREATE TABLE IF NOT EXISTS visits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, parcel_id TEXT NOT NULL, outcome TEXT NOT NULL,
+        notes TEXT, visitor TEXT, visited_at TEXT NOT NULL)""")
     return con
+
+
+OUTCOMES = ("Interested", "Follow Up", "Not Interested", "Already Handled", "Not Qualified", "No Contact",
+            "Do Not Contact")
+VISIT_COLS = ["id", "parcel_id", "outcome", "notes", "visitor", "visited_at"]
+
+
+def validate_visit(payload):
+    """Check a "Stopped By" submission. Returns (parcel_id, outcome, notes) or raises ValueError."""
+    if not isinstance(payload, dict):
+        raise ValueError("expected a JSON object")
+    pid = normalize_pid(str(payload.get("parcel_id") or ""))
+    outcome = payload.get("outcome")
+    if outcome not in OUTCOMES:
+        raise ValueError("pick one of the outcomes")
+    notes = str(payload.get("notes") or "").strip()
+    if len(notes) > 5000:
+        raise ValueError("notes are limited to 5,000 characters")
+    return pid, outcome, notes
+
+
+def add_visit(con, pid, outcome, notes, visitor):
+    """Log a visit in SQLite and return it as a dict."""
+    row = {"parcel_id": pid, "outcome": outcome, "notes": notes, "visitor": visitor, "visited_at": _now()}
+    cur = con.execute("INSERT INTO visits (parcel_id, outcome, notes, visitor, visited_at) VALUES (?, ?, ?, ?, ?)",
+                      tuple(row.values()))
+    con.commit()
+    return {"id": cur.lastrowid, **row}
 
 
 def _now():
