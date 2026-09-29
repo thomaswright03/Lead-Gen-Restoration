@@ -172,7 +172,7 @@ td.addr button:focus-visible { outline: 2px solid var(--accent); }
       </div>
       <div class="panel howto">
         <h2>Reading the score</h2>
-        <p>Points add up to a maximum of 12 for a house: Overall Poor 4 (Special obsolescence 3, Fair 2) + Interior Poor 3 (Fair 2) + Exterior Poor 3 (Fair 2) + Poor curb appeal 1 + Poor garage or shed 1. Condos are rated on interior only, so they top out at 3. Flagged at 2 or more.</p>
+        <p>Points add up to a maximum of 12 for a house: Overall Poor 4 (Special obsolescence 3, Fair 2) + Interior Poor 3 (Fair 2) + Exterior Poor 3 (Fair 2) + Poor curb appeal 1 + Poor garage or shed 1 (each extra outbuilding can add 1 more). Condos are rated on interior only, so they top out at 3. Flagged at 2 or more.</p>
       </div>
     </section>
   </div>
