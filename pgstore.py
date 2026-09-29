@@ -1,12 +1,16 @@
 """Mirror results to Postgres for the hosted dashboard, and read them back.
 
-    python3 pgstore.py sync        # push local assessor.db to $DATABASE_URL
+    python3 pgstore.py sync          # push local assessor.db to $DATABASE_URL
+    python3 pgstore.py sync --http   # same, over Neon's HTTPS SQL endpoint (for networks that block port 5432)
 
 Needs `pip install "psycopg[binary]"`. The scraper itself stays standard-library only;
 only this module and the Vercel function use Postgres.
 """
+import json
 import os
 import sys
+import urllib.parse
+import urllib.request
 
 import assessor
 
@@ -72,6 +76,42 @@ def sync(lite, url=None):
     return counts
 
 
+def _database_url(url=None):
+    url = url or next((os.environ[k] for k in ("DATABASE_URL", "POSTGRES_URL", "STORAGE_URL") if os.environ.get(k)), None)
+    if not url:
+        raise RuntimeError("DATABASE_URL is not set")
+    return url
+
+
+def _neon_http(url, query, params=()):
+    """Run one statement through Neon's SQL-over-HTTPS endpoint."""
+    host = urllib.parse.urlsplit(url).hostname
+    req = urllib.request.Request(f"https://{host}/sql", json.dumps({"query": query, "params": list(params)}).encode(),
+                                 {"Neon-Connection-String": url, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return json.loads(resp.read())
+
+
+def sync_http(lite, url=None, chunk=200):
+    """Like sync(), but over HTTPS in multi-row upserts."""
+    url = _database_url(url)
+    for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
+        _neon_http(url, stmt)
+    counts = {}
+    for table, cols in TABLES:
+        rows = lite.execute(f"SELECT {', '.join(cols)} FROM {table}").fetchall()
+        updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols[1:])
+        for i in range(0, len(rows), chunk):
+            part = rows[i:i + chunk]
+            values = ", ".join("(" + ", ".join(f"${r * len(cols) + c + 1}" for c in range(len(cols))) + ")"
+                               for r in range(len(part)))
+            params = [None if v is None else str(v) for row in part for v in row]
+            _neon_http(url, f"INSERT INTO {table} ({', '.join(cols)}) VALUES {values} "
+                            f"ON CONFLICT (parcel_id) DO UPDATE SET {updates}", params)
+        counts[table] = len(rows)
+    return counts
+
+
 def load(url=None):
     """Copy the Postgres tables into an in-memory SQLite db shaped like assessor.db."""
     lite = assessor.db(":memory:")
@@ -85,7 +125,7 @@ def load(url=None):
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] != ["sync"]:
+    if sys.argv[1:2] != ["sync"]:
         raise SystemExit(__doc__)
-    counts = sync(assessor.db())
+    counts = (sync_http if "--http" in sys.argv else sync)(assessor.db())
     print("synced " + ", ".join(f"{n} {table}" for table, n in counts.items()))
