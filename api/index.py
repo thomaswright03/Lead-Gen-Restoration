@@ -2,6 +2,7 @@
 
 Environment (set in the Vercel project):
     DATABASE_URL        Postgres connection string (the Neon integration sets it)
+    RENTCAST_API_KEY    optional; enables the "Refresh sales" button for the Recently Sold pins
     DASHBOARD_PASSWORD  password for the browser login prompt; the username is recorded as who
                         knocked on a door, so each person should use their own name
 """
@@ -41,6 +42,9 @@ class handler(dashboard.Handler):
             banner = f'<div class="wrap" style="padding-block:12px 0"><p class="sub" role="status">{html.escape(self.db_note)}</p></div>'
             page = page.replace('<div class="wrap">', banner + '\n<div class="wrap">', 1)
         return page
+
+    def store_sales(self, sale_rows):
+        pgstore.replace_sales(sale_rows)
 
     def save_visit(self, pid, outcome, notes, visitor):
         return pgstore.add_visit(pid, outcome, notes, visitor)

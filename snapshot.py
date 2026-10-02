@@ -13,6 +13,7 @@ import html
 import json
 
 import assessor
+import listings
 
 TEMPLATE = r"""<title>Poor Condition Parcels</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,7 +26,7 @@ TEMPLATE = r"""<title>Poor Condition Parcels</title>
   --bg: #f6f7f9; --panel: #ffffff; --fg: #1b2230; --muted: #5d6778; --line: #dfe3ea;
   --accent: #2748a8; --accent-soft: #e6ebf8;
   --poor: #b42318; --poor-soft: #fde8e6; --fair: #a15c07; --fair-soft: #fdf0dc; --ok: #3b6e4f; --ok-soft: #e4f1e8;
-  --follow: #6d28d9; --nocontact: #0e7490; --dnc: #111827; --done: #8a94a6;
+  --follow: #6d28d9; --nocontact: #0e7490; --dnc: #111827; --done: #8a94a6; --sold: #c026d3;
   --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
   --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -34,13 +35,13 @@ TEMPLATE = r"""<title>Poor Condition Parcels</title>
   --bg: #11151c; --panel: #181e27; --fg: #e6e9ef; --muted: #98a2b3; --line: #2a3240;
   --accent: #8ea8ff; --accent-soft: #1f2a47;
   --poor: #ff8a80; --poor-soft: #3a1a18; --fair: #f5b866; --fair-soft: #36280f; --ok: #8fd0a6; --ok-soft: #16301f;
-  --follow: #c4a5ff; --nocontact: #67d4e6; --dnc: #f3f4f6; --done: #6b7486;
+  --follow: #c4a5ff; --nocontact: #67d4e6; --dnc: #f3f4f6; --done: #6b7486; --sold: #f0abfc;
   color-scheme: dark; } }
 :root[data-theme="dark"] {
   --bg: #11151c; --panel: #181e27; --fg: #e6e9ef; --muted: #98a2b3; --line: #2a3240;
   --accent: #8ea8ff; --accent-soft: #1f2a47;
   --poor: #ff8a80; --poor-soft: #3a1a18; --fair: #f5b866; --fair-soft: #36280f; --ok: #8fd0a6; --ok-soft: #16301f;
-  --follow: #c4a5ff; --nocontact: #67d4e6; --dnc: #f3f4f6; --done: #6b7486;
+  --follow: #c4a5ff; --nocontact: #67d4e6; --dnc: #f3f4f6; --done: #6b7486; --sold: #f0abfc;
   color-scheme: dark; }
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); margin: 0; }
@@ -143,6 +144,10 @@ button.btn:disabled { opacity: .6; cursor: default; }
 .pill input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--panel); }
 .pill input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 .formrow { display: flex; gap: 10px; align-items: center; }
+.soldbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--muted); }
+.soldbar label:not(.check) { display: flex; gap: 6px; align-items: center; }
+.soldbar select { font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.soldbar .check { padding-bottom: 0; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); } }
 :root[data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
 </style>
@@ -202,8 +207,14 @@ button.btn:disabled { opacity: .6; cursor: default; }
         <div class="maphead">
           <h2>Map</h2>
           <span class="status" id="mapstatus" role="status"></span>
-          <div class="legend" aria-hidden="true"><span><i style="background:var(--poor)"></i>Poor</span><span><i style="background:var(--fair)"></i>Fair</span><span><i style="background:var(--accent)"></i>You</span><span><i class="ring" style="border-color:var(--ok)"></i>Interested</span><span><i class="ring" style="border-color:var(--follow)"></i>Follow up</span><span><i class="ring" style="border-color:var(--nocontact)"></i>No contact</span><span title="Not interested, already handled or not qualified"><i class="ring" style="border-color:var(--done)"></i>Not a lead</span><span><i class="ring" style="border-color:var(--dnc)"></i>Do not contact</span></div>
+          <div class="legend" aria-hidden="true"><span><i style="background:var(--poor)"></i>Poor</span><span><i style="background:var(--fair)"></i>Fair</span><span><i style="background:var(--accent)"></i>You</span><span><i class="ring" style="border-color:var(--ok)"></i>Interested</span><span><i class="ring" style="border-color:var(--follow)"></i>Follow up</span><span><i class="ring" style="border-color:var(--nocontact)"></i>No contact</span><span title="Not interested, already handled or not qualified"><i class="ring" style="border-color:var(--done)"></i>Not a lead</span><span><i class="ring" style="border-color:var(--dnc)"></i>Do not contact</span><span><i style="background:var(--sold);width:8px;height:8px"></i>Recently sold</span></div>
           <button class="btn" type="button" id="locate">Find homes near me</button>
+        </div>
+        <div class="soldbar">
+          <label class="check" for="sold"><input id="sold" type="checkbox" checked> Recently Sold pins</label>
+          <label for="soldDays">Sold within<select id="soldDays"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="365">All loaded</option></select></label>
+          <span class="status" id="soldstatus"></span>
+          <button class="btn" type="button" id="soldrefresh" hidden>Refresh sales</button>
         </div>
         <div id="map" role="region" aria-label="Map of the homes in the table"></div>
       </div>
@@ -245,14 +256,14 @@ const condKey = v => (v || "").split(" ")[0];
 const YEAR_AGO = new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10);
 
 $("knock").insertAdjacentHTML("beforeend", `<optgroup label="Last outcome">${OUTCOMES.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join("")}</optgroup>`);
-const FILTER_IDS = ["q", "cond", "minscore", "activity", "knock", "within", "built"];
+const FILTER_IDS = ["q", "cond", "minscore", "activity", "knock", "within", "built", "soldDays"];
 // First visit: start on the Poor homes, the door-knocking list. Saved filters win after that.
 $("cond").value = "POOR";
 try { const saved = JSON.parse(localStorage.getItem("pcp-filters") || "{}"); Object.assign(state, saved.state || {});
   for (const id of FILTER_IDS) if (saved[id] != null) $(id).value = saved[id];
-  $("all").checked = !!saved.all; } catch (e) {}
+  $("all").checked = !!saved.all; if (saved.sold != null) $("sold").checked = saved.sold; } catch (e) {}
 
-function save() { try { localStorage.setItem("pcp-filters", JSON.stringify({ state, all: $("all").checked, ...Object.fromEntries(FILTER_IDS.map(id => [id, $(id).value])) })); } catch (e) {} }
+function save() { try { localStorage.setItem("pcp-filters", JSON.stringify({ state, all: $("all").checked, sold: $("sold").checked, ...Object.fromEntries(FILTER_IDS.map(id => [id, $(id).value])) })); } catch (e) {} }
 
 function filtered() {
   const q = $("q").value.trim().toLowerCase(), cond = $("cond").value, min = +$("minscore").value, all = $("all").checked;
@@ -318,6 +329,7 @@ function render() {
 }
 
 // ---- Map and location -------------------------------------------------------------------------
+let soldLayer = null;
 let map = null, layer = null, meDot = null, meRing = null, here = null, watchId = null, fitted = false, lastDrawn = null;
 const markers = {};
 const miles = d => d < 0.1 ? `${Math.round(d * 5280 / 10) * 10} ft` : `${d.toFixed(d < 10 ? 1 : 0)} mi`;
@@ -389,6 +401,7 @@ function initMap() {
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
   map.on("focus", () => map.scrollWheelZoom.enable());
   map.on("blur", () => map.scrollWheelZoom.disable());
+  soldLayer = L.layerGroup().addTo(map);  // added first so condition pins draw on top
   layer = L.layerGroup().addTo(map);
 }
 function drawMap(rows) {
@@ -413,6 +426,48 @@ function drawMap(rows) {
   // Frame the results until the viewer's location takes over.
   if (!here && pts.length && (!fitted || lastDrawn !== pts.length)) { map.fitBounds(pts, { padding: [20, 20], maxZoom: 15, animate: false }); fitted = true; }
   lastDrawn = pts.length;
+  drawSold();
+}
+// ---- Recently sold homes countywide -----------------------------------------------------------
+const SALES = DATA.sales;
+const money0 = v => "$" + Number(v).toLocaleString();
+function soldPopup(h) {
+  const facts = [h.property_type, h.bedrooms && `${h.bedrooms} bd`, h.bathrooms && `${h.bathrooms} ba`,
+    h.square_footage && `${Number(h.square_footage).toLocaleString()} sqft`, h.year_built && `built ${h.year_built}`].filter(Boolean).map(esc).join(" · ");
+  const sold = new Date(h.sale_date + "T12:00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  const match = h.parcel_id && DATA.rows.find(r => r.parcel_id === h.parcel_id);
+  return `<b>${esc(h.address)}</b>${h.city ? `, ${esc(h.city)}` : ""}<br><span class="chip" style="background:transparent;color:var(--sold);padding-left:0">RECENTLY SOLD</span> ${esc(sold)}${h.sale_price ? ` · ${money0(h.sale_price)}` : ""}`
+    + (facts ? `<br>${facts}` : "")
+    + (match ? `<br>Also on the condition list: <span class="chip ${esc(condKey(match.overall_condition))}">${esc(match.overall_condition || match.interior_condition || "flagged")}</span> score ${esc(match.score)}` : "")
+    + (h._dist != null ? `<br>${miles(h._dist)} away` : "")
+    + `<div class="pop-links"><a href="${directions(h)}" target="_blank" rel="noopener">Directions</a></div>`;
+}
+function drawSold() {
+  if (!map) return;
+  soldLayer.clearLayers();
+  const on = $("sold").checked, days = +$("soldDays").value, within = +$("within").value;
+  const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  let n = 0;
+  if (on) for (const h of SALES) {
+    if (h.sale_date < since || (within && !(h._dist != null && h._dist <= within))) continue;
+    L.circleMarker([h.lat, h.lon], { radius: 4, weight: 1, color: css("--panel"), fillColor: css("--sold"), fillOpacity: .8 })
+      .bindPopup(() => soldPopup(h), { maxWidth: 280, autoPanPaddingTopLeft: [48, 10] }).addTo(soldLayer);
+    n++;
+  }
+  const asof = SALES.reduce((a, h) => h.fetched_at > a ? h.fetched_at : a, "");
+  $("soldstatus").textContent = !SALES.length ? (CAN_SAVE ? "No sales loaded yet." : "No sales loaded.")
+    : `${on ? `${n.toLocaleString()} sold homes shown` : "Hidden"} · updated ${when(asof)}`;
+}
+async function refreshSales() {
+  if (!confirm("Refreshing pulls the last 90 days of Salt Lake County sales from RentCast. It uses roughly 5 to 15 of the 50 requests the free plan allows each month. Continue?")) return;
+  const btn = $("soldrefresh"); btn.disabled = true; $("soldstatus").textContent = "Pulling recent sales…";
+  try {
+    const res = await fetch("sales/refresh", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ days: 90 }) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `error ${res.status}`);
+    $("soldstatus").textContent = `Loaded ${body.homes.toLocaleString()} sold homes. Reloading…`;
+    location.reload();
+  } catch (err) { $("soldstatus").textContent = `Couldn't refresh (${err.message}).`; btn.disabled = false; }
 }
 function setHere(pos) {
   const first = !here, { latitude: lat, longitude: lon, accuracy } = pos.coords;
@@ -426,6 +481,7 @@ function setHere(pos) {
   }
   if (first || moved > 100) {  // re-sort when the viewer has walked about a block
     for (const r of DATA.rows) r._dist = r.lat == null ? null : haversine(lat, lon, r.lat, r.lon);
+    for (const h of SALES) h._dist = haversine(lat, lon, h.lat, h.lon);
     if (first) state.sort = "distance", state.dir = 1;
     render();
     if (first && map) {  // frame the viewer with the five closest homes
@@ -462,6 +518,8 @@ $("t-flag").textContent = DATA.rows.filter(r => r.flagged).length.toLocaleString
 $("t-poor").textContent = DATA.rows.filter(r => condKey(r.overall_condition) === "POOR").length.toLocaleString();
 
 $("controls").addEventListener("input", render);
+for (const id of ["sold", "soldDays"]) $(id).addEventListener("input", () => { drawSold(); save(); });
+if (CAN_SAVE) { $("soldrefresh").hidden = false; $("soldrefresh").addEventListener("click", refreshSales); }
 $("locate").addEventListener("click", locate);
 $("body").addEventListener("click", e => { const b = e.target.closest("button[data-pid]"); const m = b && markers[b.dataset.pid];
   if (!m) return; map.setView(m.getLatLng(), Math.max(map.getZoom(), 17)); m.openPopup(); $("mapbox").scrollIntoView({ behavior: "smooth", block: "start" }); });
@@ -503,7 +561,17 @@ def build(con, show_owner=True, artifact=False, can_save=False):
             "SELECT parcel_id, outcome, notes, visitor, visited_at FROM visits ORDER BY visited_at, id"):
         visits.setdefault(pid, []).append({"outcome": outcome, "notes": notes if show_owner else None,
                                            "visitor": visitor, "visited_at": at})
-    data = {"candidates": con.execute("SELECT COUNT(*) FROM candidates").fetchone()[0], "rows": rows_out, "visits": visits}
+    by_address = {listings.normalize(r["address"]): r["parcel_id"] for r in rows if r["address"]}
+    sales = []
+    for row in con.execute("SELECT address, city, lat, lon, property_type, bedrooms, bathrooms, square_footage, "
+                           "year_built, sale_date, sale_price, fetched_at FROM sales ORDER BY sale_date DESC"):
+        h = dict(zip(["address", "city", "lat", "lon", "property_type", "bedrooms", "bathrooms", "square_footage",
+                      "year_built", "sale_date", "sale_price", "fetched_at"], row))
+        h["lat"], h["lon"] = round(float(h["lat"]), 5), round(float(h["lon"]), 5)
+        h["parcel_id"] = by_address.get(listings.normalize(h["address"]))
+        sales.append({k: v for k, v in h.items() if v is not None})
+    data = {"candidates": con.execute("SELECT COUNT(*) FROM candidates").fetchone()[0], "rows": rows_out,
+            "visits": visits, "sales": sales}
     # "<" only occurs inside strings here, so escaping it keeps typed notes from closing the script tag.
     payload = json.dumps(data, separators=(",", ":")).replace("<", "\\u003c")
     page = (TEMPLATE

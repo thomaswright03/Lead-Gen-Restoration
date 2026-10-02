@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "api"))
 
 import assessor  # noqa: E402
+import sales  # noqa: E402
 import index  # noqa: E402  (api/index.py)
 
 FIXTURE = (ROOT / "tests" / "fixtures" / "synthetic_poor.html").read_text()
@@ -39,6 +40,13 @@ class HostedHandlerTest(unittest.TestCase):
         class Local(index.handler):
             def open_db(self):
                 return assessor.db(db_path)
+
+            def store_sales(self, sale_rows):  # stands in for Postgres
+                con = assessor.db(db_path)
+                try:
+                    sales.replace(con, sale_rows)
+                finally:
+                    con.close()
 
             def save_visit(self, pid, outcome, notes, visitor):  # stands in for Postgres
                 con = assessor.db(db_path)
@@ -111,6 +119,26 @@ class HostedHandlerTest(unittest.TestCase):
         self.assertIn("Back after 5 \\u003c/script>", page)
         self.assertNotIn("5 </script>", page)
         self.assertIn("const CAN_SAVE = true;", page)
+
+    def test_refresh_sales(self):
+        os.environ["DASHBOARD_PASSWORD"] = "s3cret"
+        os.environ.pop("RENTCAST_API_KEY", None)
+        req = lambda: urllib.request.Request(self.base + "/sales/refresh", data=b'{"days": 30}', method="POST", headers={
+            "Content-Type": "application/json", "Authorization": "Basic " + base64.b64encode(b"x:s3cret").decode()})
+        with self.assertRaises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(req())
+        self.assertEqual(err.exception.code, 503)
+        os.environ["RENTCAST_API_KEY"] = "test"
+        orig = sales.fetch
+        sales.fetch = lambda key, days: ([{"id": "z", "addressLine1": "1 A St", "county": "Salt Lake", "latitude": 40.7,
+                                            "longitude": -111.9, "lastSaleDate": "2026-09-20T00:00:00Z"}], 1)
+        try:
+            with urllib.request.urlopen(req()) as resp:
+                self.assertEqual(json.loads(resp.read())["homes"], 1)
+        finally:
+            sales.fetch = orig
+            os.environ.pop("RENTCAST_API_KEY", None)
+        self.assertIn('"address":"1 A St"', self.get("/", "s3cret")[1])
 
 
 if __name__ == "__main__":

@@ -9,10 +9,12 @@ import argparse
 import html
 import io
 import json
+import os
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import assessor
+import sales
 
 TABLE_COLS = [("parcel_id", "Parcel"), ("address", "Address"), ("city", "City"), ("property_type", "Type"), ("owner", "Owner"),
               ("year_built", "Built"), ("effective_year_built", "Eff. built"), ("market_value", "Market value"),
@@ -116,15 +118,45 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             con.close()
 
+    def store_sales(self, sale_rows):
+        con = self.open_db()
+        try:
+            sales.replace(con, sale_rows)
+        finally:
+            con.close()
+
+    def refresh_sales(self, body):
+        """Pull recently sold homes from RentCast and store them. JSON {days} to /sales/refresh."""
+        key = os.environ.get("RENTCAST_API_KEY")
+        if not key:
+            return self._json(503, {"error": "RENTCAST_API_KEY is not set for this site"})
+        try:
+            days = min(max(int(body.get("days") or 90), 1), 365)
+        except (TypeError, ValueError, AttributeError):
+            return self._json(400, {"error": "days must be a number"})
+        try:
+            homes, used = sales.fetch(key, days)
+        except Exception as exc:  # RentCast down, bad key, quota used up
+            return self._json(502, {"error": f"RentCast request failed: {exc}"})
+        found = sales.rows(homes)
+        self.store_sales(found)
+        self._json(200, {"homes": len(found), "requests": used, "days": days})
+
     def do_POST(self):
-        """Log a "Stopped By" visit: JSON {parcel_id, outcome, notes} to /visits."""
+        """Log a "Stopped By" visit (JSON {parcel_id, outcome, notes} to /visits) or refresh recent sales."""
         if not self.authorized():
             return
-        if not urllib.parse.urlsplit(self.path).path.endswith("/visits"):
+        path = urllib.parse.urlsplit(self.path).path
+        if not path.endswith(("/visits", "/sales/refresh")):
             return self._json(404, {"error": "not found"})
         # Requiring a JSON body blocks cross-site form posts, which cannot set this content type.
         if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json":
             return self._json(415, {"error": "expected application/json"})
+        if path.endswith("/sales/refresh"):
+            try:
+                return self.refresh_sales(json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 2000)) or b"{}"))
+            except ValueError:
+                return self._json(400, {"error": "expected a JSON object"})
         length = int(self.headers.get("Content-Length") or 0)
         if not 0 < length <= 20000:
             return self._json(413, {"error": "request too large"})
