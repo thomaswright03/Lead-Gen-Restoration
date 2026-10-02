@@ -25,6 +25,8 @@ LISTING_COLS = ["parcel_id", "status", "price", "listed_date", "removed_date", "
                 "agent_phone", "agent_email", "office_name", "office_phone", "mls_name", "mls_number",
                 "listing_address", "checked_at"]
 VISIT_COLS = assessor.VISIT_COLS
+SALE_COLS = ["id", "address", "city", "zip", "lat", "lon", "property_type", "bedrooms", "bathrooms",
+             "square_footage", "year_built", "sale_date", "sale_price", "fetched_at"]
 TABLES = (("candidates", CANDIDATE_COLS), ("parcels", PARCEL_COLS), ("recorder", RECORDER_COLS),
           ("listings", LISTING_COLS))
 
@@ -52,6 +54,10 @@ CREATE TABLE IF NOT EXISTS visits (
     id BIGSERIAL PRIMARY KEY, parcel_id TEXT NOT NULL, outcome TEXT NOT NULL, notes TEXT, visitor TEXT,
     visited_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS visits_parcel ON visits (parcel_id);
+CREATE TABLE IF NOT EXISTS sales (
+    id TEXT PRIMARY KEY, address TEXT, city TEXT, zip TEXT, lat DOUBLE PRECISION, lon DOUBLE PRECISION,
+    property_type TEXT, bedrooms DOUBLE PRECISION, bathrooms DOUBLE PRECISION, square_footage INTEGER,
+    year_built INTEGER, sale_date TEXT, sale_price BIGINT, fetched_at TEXT);
 """
 
 
@@ -130,8 +136,22 @@ def load(url=None):
         # Visits are written on the hosted site only, so sync() never touches them; they are read back here.
         rows = pg.execute(f"SELECT {', '.join(VISIT_COLS)} FROM visits ORDER BY visited_at, id").fetchall()
         lite.executemany(f"INSERT INTO visits ({', '.join(VISIT_COLS)}) VALUES ({', '.join('?' * len(VISIT_COLS))})", rows)
+        # Sales are written by the site's "Refresh sales" button, not by sync().
+        rows = pg.execute(f"SELECT {', '.join(SALE_COLS)} FROM sales").fetchall()
+        lite.executemany(f"INSERT INTO sales ({', '.join(SALE_COLS)}) VALUES ({', '.join('?' * len(SALE_COLS))})", rows)
     lite.commit()
     return lite
+
+
+def replace_sales(sale_rows, url=None):
+    """Swap the Postgres sales table for a fresh pull, in one transaction."""
+    with _connect(url) as pg:
+        pg.execute(SCHEMA)
+        with pg.cursor() as cur:
+            cur.execute("DELETE FROM sales")
+            cur.executemany(f"INSERT INTO sales ({', '.join(SALE_COLS)}) VALUES ({', '.join(['%s'] * len(SALE_COLS))})",
+                            [tuple(r[c] for c in SALE_COLS) for r in sale_rows])
+    return len(sale_rows)
 
 
 def add_visit(pid, outcome, notes, visitor, url=None):

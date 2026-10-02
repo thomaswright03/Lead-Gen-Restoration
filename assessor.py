@@ -184,6 +184,11 @@ def db(path=None):
     con.execute("""CREATE TABLE IF NOT EXISTS visits (
         id INTEGER PRIMARY KEY AUTOINCREMENT, parcel_id TEXT NOT NULL, outcome TEXT NOT NULL,
         notes TEXT, visitor TEXT, visited_at TEXT NOT NULL)""")
+    # Recently sold homes countywide (sales.py), replaced wholesale on each refresh.
+    con.execute("""CREATE TABLE IF NOT EXISTS sales (
+        id TEXT PRIMARY KEY, address TEXT, city TEXT, zip TEXT, lat REAL, lon REAL, property_type TEXT,
+        bedrooms REAL, bathrooms REAL, square_footage INTEGER, year_built INTEGER, sale_date TEXT,
+        sale_price INTEGER, fetched_at TEXT)""")
     return con
 
 

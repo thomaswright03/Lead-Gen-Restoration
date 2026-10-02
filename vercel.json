@@ -1,7 +1,8 @@
 {
   "functions": {
     "api/index.py": {
-      "includeFiles": "{assessor.py,dashboard.py,pgstore.py,snapshot.py,rules.json}"
+      "includeFiles": "{assessor.py,dashboard.py,listings.py,pgstore.py,sales.py,snapshot.py,rules.json}",
+      "maxDuration": 60
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
